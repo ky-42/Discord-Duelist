@@ -1,6 +1,6 @@
 services:
     game-data:
-        image: redis:7-alpine
+        image: redislabs/rejson:2.4.3
         restart: always
         ports:
             - '6379:6379'

@@ -5,17 +5,30 @@ from discord.ext import commands
 import redis.asyncio as redis
 from psycopg_pool.pool_async import AsyncConnectionPool as PgConnectionPool
 
+import game_handling
+import user_handling
+
 
 class Bot(commands.Bot):
+    def __init__(
+        self, 
+        *args,
+        **kwags
+    ):
+        super().__init__(*args, **kwags)
+
     async def setup_hook(self: commands.Bot):
-        # Creates connection pools for user db and game cache
-        self.game_data_pool = redis.Redis()
-        self.user_data_pool = PgConnectionPool(f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost/{os.getenv('POSTGRES_DB')}")
+        # # Creates connection pools for user db and game cache
+        self.game_data_pool = redis.Redis(db=0)
+        self.game_status_pool = redis.Redis(db=1)
+        # self.user_data_pool = PgConnectionPool(f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost/{os.getenv('POSTGRES_DB')}")
         
         # Loads all cogs
         await self.load_extension("cogs.game")
         await self.load_extension("cogs.tournament")
         await self.load_extension("cogs.money")
+        
+        self.game_admin = game_handling.GameAdmin()
 
         # Syncs commands to mals server
         MY_GUILD = discord.Object(id=378743556526964737) 
