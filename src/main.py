@@ -16,19 +16,18 @@ class Bot(commands.Bot):
         **kwags
     ):
         super().__init__(*args, **kwags)
+        self.game_admin = game_handling.GameAdmin(self)
+        self.game_status = game_handling.GameStatus(self)
 
     async def setup_hook(self: commands.Bot):
         # # Creates connection pools for user db and game cache
-        self.game_data_pool = redis.Redis(db=0)
-        self.game_status_pool = redis.Redis(db=1)
+        # self.game_data_pool = redis.Redis(db=0)
         # self.user_data_pool = PgConnectionPool(f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost/{os.getenv('POSTGRES_DB')}")
         
         # Loads all cogs
         await self.load_extension("cogs.game")
         await self.load_extension("cogs.tournament")
         await self.load_extension("cogs.money")
-        
-        self.game_admin = game_handling.GameAdmin()
 
         # Syncs commands to mals server
         MY_GUILD = discord.Object(id=378743556526964737) 

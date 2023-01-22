@@ -26,16 +26,17 @@ class Game(commands.GroupCog, name="game"):
         players = [player_one, player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
         players = [player.id for player in players if player != None]
         
-        game_admin = interaction.client.game_admin
+        game_admin = self.bot.game_admin
         
-        game_admin.check_game_details(game=game, player_count=len(players))
+        try:
+            game_admin.check_game_details(game=game, player_count=len(players))
+        except ModuleNotFoundError:
+            await interaction.response.send_message("Game not found")
+
 
         
 
-Redis hashes are record types structured as collections of field-value pairs. You can use hashes to represent basic objects and 
 
-Redis hashes are record types structured as collections of field-value pairs. You can use hashes to represent basic objects and # game_handler.initialize_game(game=game, bet=bet, players=players)
-    
 
     @play.autocomplete('game')
     async def game_autocomplete(self, interaction: discord.Interaction, current: str):
