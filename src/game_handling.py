@@ -1,4 +1,5 @@
 import importlib
+import string
 import discord
 import os
 import random
@@ -10,6 +11,7 @@ import redis.asyncio as redis
 from redis.commands.json.path import Path
 from games.tests import GameInfo
 from types import ModuleType
+from exceptions import GameNotFound, PlayerNotFound
 
 
 @dataclass
@@ -23,41 +25,35 @@ class GameState:
     confirmed_players: List[int]
     unconfirmed_players: List[int]
 
-class GameNotFound(Exception):
-    """Raised when game is not found in db"""
+GameId = str
 
-class PlayerNotFound(Exception):
-    """Raised when looking for a player but they are not found"""
 
 class GameStatus:
     def __init__(self, bot: Bot) -> None:
         self.pool = redis.Redis(db=1)
         self.bot = bot
     
-    def get_game(self, game_id: int) -> GameState:
-        if self.pool.exists(str(game_id)):
+    def get_game(self, game_id: GameId) -> GameState:
+        if self.pool.exists(game_id):
             return GameState(**self.pool.json().get(game_id))
         raise GameNotFound
          
-    def add_game(self, game_id: int, state: GameState):
+    def add_game(self, game_id: GameId, state: GameState):
         self.pool.json().set(game_id, '.', asdict(state))
+
+    async def player_confirm(self, game_id: GameId, player_id: int):
+        confirmed_player_index = self.pool.json().arrindex(game_id, '.unconfirmed_player', player_id)
+        if confirmed_player_index:
+            # TODO make into pipline as to batch commands
+            self.pool.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
+            self.pool.json().arrappend(game_id, '.confirmed_players', player_id)
+            
+            unconfirmed_list = self.pool.json().get(game_id, '.unconfirmed_players')
+            
+            if len(unconfirmed_list) == 0:
+                self.bot.game_admin.start_game(game_id)
+
     
-    async def send_confirms(self, game_id):
-        unconfirmed_players = self.get_game(game_id).unconfirmed_players
-
-        for player_id in unconfirmed_players:
-            await self.__send_confirm(player_id)
-        
-    async def __send_confirm(self, player_id: int):
-        player = self.bot.get_user(player_id)
-
-        if player != None:
-            if (dm_channel := player.dm_channel) != None:
-                pass
-            else:
-                await player.create_dm()
-        else:
-            raise PlayerNotFound
 
         
     
@@ -69,30 +65,40 @@ class GameAdmin:
 
         for game_name in os.listdir("./games"):
             self.loaded_games[game_name] = None
-            
-    # Not to be called externally and only if the game isnt loaded already
-    def __load_game(self, game_name:str):
-        game = importlib.import_module(f"games.{game_name}")
-        self.loaded_games[game_name] = game
-        return game
 
-    def get_game_details(self, game_name: str):
+    # ---------------------------------------------------------------------------- #
+            
+    def check_game_details(self, game_name: str, player_count: int) -> None:
+        details = self.get_game_details(game_name)
+        
+        details.check_player_count(player_count)
+
+    def get_game_details(self, game_name: str) -> GameInfo:
         if (game_module := self.loaded_games[game_name]) != None:
             return game_module.detail
         return self.__load_game(game_name).detail
 
-    def check_game_details(self, game_details: GameInfo):
-    
-    
-    def initialize_game(
+    # Not to be called externally and only if the game isnt loaded already
+    def __load_game(self, game_name:str) -> ModuleType:
+        game = importlib.import_module(f"games.{game_name}")
+        self.loaded_games[game_name] = game
+        return game
+
+    # ---------------------------------------------------------------------------- #
+
+    async def initialize_game(
             self,
             game: str,
             bet: int,
-            init_player: int,
+            player_one: int,
             players: List[int]
         ):
         
-        game_id = random.randint(1, 100000000)
+        game_id = ''.join(random.choices(
+            string.ascii_letters +
+            string.digits,
+            k = 16
+        ))
 
         game_details = GameState(
             status = 0,
@@ -100,31 +106,53 @@ class GameAdmin:
             bet = bet,
             ready_players = [],
             queued_players = [],
-            confirmed_players = [init_player],
+            confirmed_players = [player_one],
             unconfirmed_players = players
         )
         
-        .add_game(game_id, game_details)
+        self.bot.game_status.add_game(game_id, game_details)
         
-        self.confirm_game(game_id)
+        await self.confirm_game(game_id)
     
-    def confirm_game(self, game_id: int):
-        game_details = GameStatus.game_status_pool.get(game_id)
-        
-        for player_id in game_details.unconfirmed_players:
-            unconfimed_player = bot.get_user(player_id)
 
-    def cancel_game(self, game_id: int):
+    # ---------------------------------------------------------------------------- #
+
+    async def confirm_game(self, game_id: GameId):
+        unconfirmed_players = self.bot.game_status.get_game(game_id).unconfirmed_players
+
+        for player_id in unconfirmed_players:
+            await self.__send_confirm(player_id)
+        
+    async def __send_confirm(self, player_id: int):
+        unconfimed_player = self.bot.get_user(player_id)
+        
+        if unconfimed_player:
+            if not unconfimed_player.dm_channel:
+                await unconfimed_player.create_dm()
+            
+            await unconfimed_player.dm_channel.send('hi')
+        else:
+            raise PlayerNotFound
+    
+    
+    
+    async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
         pass
 
-    def player_confim(self, player_id):
-        pass
+    # ---------------------------------------------------------------------------- #
 
-    
-    def start_game(self):
+    def start_game(self, game_id: GameId):
         pass
 
     def game_end(self):
+        pass
+
+    def cancel_game(self, game_id: GameId):
+        pass
+    
+    # Run this when there is an error and a game need to be cleaned up when not initilized 
+    # or half way through function
+    def clear_game(self, game_id: GameId):
         pass
 
 
@@ -141,6 +169,20 @@ class GameAdmin:
 #     def get_game_data(key):
 #         self.base_data['game_data'][key]
 class GameConfirm(discord.ui.View):
-    def __init__(self, game_id):
+    def __init__(self, bot: Bot, game_id: GameId):
+        self.bot = bot
+        self.game_id = game_id
         super().__init__()
+    
+    @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.bot.game_status.player_confirm(self.game_id, interaction.user.id)
+        await interaction.response.send_message('Game accepted!')
+
+
+
+    @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.bot.game_status.reject_game(self.game_id, interaction.user)
+
 
