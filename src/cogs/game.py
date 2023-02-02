@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from typing import Optional
-from ..main import Bot
+from main import Bot
 from exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
 
 class Game(commands.GroupCog, name="game"):
@@ -67,9 +67,7 @@ class Game(commands.GroupCog, name="game"):
 
         
 
-
-
-    @play.autocomplete('game')
+    # @play.autocomplete('game')
     async def game_autocomplete(self, interaction: discord.Interaction, current: str):
         return [
             app_commands.Choice(name="abc", value="abc")

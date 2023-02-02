@@ -3,7 +3,7 @@ import string
 import discord
 import os
 import random
-from .main import Bot
+from main import Bot
 from datetime import datetime
 from typing import List
 from dataclasses import dataclass, asdict
@@ -42,20 +42,24 @@ class GameStatus:
         self.pool.json().set(game_id, '.', asdict(state))
 
     async def player_confirm(self, game_id: GameId, player_id: int) -> List[int]:
-        confirmed_player_index = self.pool.json().arrindex(game_id, '.unconfirmed_player', player_id)
 
-        if confirmed_player_index:
-            # TODO make into pipline as to batch commands
-            pipe = self.pool.pipeline()
-            pipe.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
-            pipe.json().arrappend(game_id, '.confirmed_players', player_id)
-            await pipe.execute()
+        self.pool.transaction(test, game_id)
+        pipe.watch(game_id)
+
+        if pipe.get(game_id):
+            if (index := pipe.json().arrindex(game_id, '.unconfirmed_player', player_id)):
+                pipe.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
+                pipe.json().arrappend(game_id, '.confirmed_players', player_id)
+                self.pool.json().get(game_id, '.unconfirmed_players')
+            else:
+                raise PlayerNotFound(player_id)
+        else:
+            raise GameNotFound()
             
-            unconfirmed_list = self.pool.json().get(game_id, '.unconfirmed_players')
+        await pipe.execute()
+                                
             
-            return unconfirmed_list
         
-        raise PlayerNotFound(player_id)
 
 class GameAdmin:
     def __init__(self, bot: Bot):
