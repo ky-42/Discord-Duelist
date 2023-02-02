@@ -41,22 +41,22 @@ class GameStatus:
     def add_game(self, game_id: GameId, state: GameState):
         self.pool.json().set(game_id, '.', asdict(state))
 
-    async def player_confirm(self, game_id: GameId, player_id: int):
+    async def player_confirm(self, game_id: GameId, player_id: int) -> List[int]:
         confirmed_player_index = self.pool.json().arrindex(game_id, '.unconfirmed_player', player_id)
+
         if confirmed_player_index:
             # TODO make into pipline as to batch commands
-            self.pool.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
-            self.pool.json().arrappend(game_id, '.confirmed_players', player_id)
+            pipe = self.pool.pipeline()
+            pipe.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
+            pipe.json().arrappend(game_id, '.confirmed_players', player_id)
+            await pipe.execute()
             
             unconfirmed_list = self.pool.json().get(game_id, '.unconfirmed_players')
             
-            if len(unconfirmed_list) == 0:
-                self.bot.game_admin.start_game(game_id)
-
-    
-
+            return unconfirmed_list
         
-    
+        raise PlayerNotFound(player_id)
+
 class GameAdmin:
     def __init__(self, bot: Bot):
         self.bot = bot
@@ -116,6 +116,12 @@ class GameAdmin:
     
 
     # ---------------------------------------------------------------------------- #
+    
+    async def player_confirm(self, game_id: GameId, player_id: int):
+        self.bot.game_status.player_confirm(game_id, player_id)
+
+        if len(unconfirmed_list) == 0:
+            self.bot.game_admin.start_game(game_id)
 
     async def confirm_game(self, game_id: GameId):
         unconfirmed_players = self.bot.game_status.get_game(game_id).unconfirmed_players
