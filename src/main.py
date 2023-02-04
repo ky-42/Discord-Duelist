@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 import redis.asyncio as redis
 from psycopg_pool.pool_async import AsyncConnectionPool as PgConnectionPool
+from exceptions import PlayerNotFound
 
 import game_handling
 import user_handling
@@ -30,10 +31,17 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.money")
 
         # Syncs commands to mals server
-        MY_GUILD = discord.Object(id=378743556526964737) 
+        MY_GUILD = discord.Object(id=715439787288428605) 
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
+    def get_user(self, user_id: int) -> discord.User:
+        user_object = super().get_user(user_id)
+        
+        if user_object:
+            return user_object
+        else:
+            raise PlayerNotFound(user_id)
 
 def main():
     #TODO update to only needed intents

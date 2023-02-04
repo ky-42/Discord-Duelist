@@ -20,6 +20,7 @@ class GameState:
     status: int
     game: str
     bet: int
+    starting_player: int
     ready_players: List[int]
     queued_players: List[int]
     confirmed_players: List[int]
@@ -42,21 +43,26 @@ class GameStatus:
         self.pool.json().set(game_id, '.', asdict(state))
 
     async def player_confirm(self, game_id: GameId, player_id: int) -> List[int]:
+        with await self.pool.pipeline() as pipe:
+            while await self.pool.exists(game_id):
+                if (index := self.pool.json().arrindex(game_id, '.unconfirmed_player', player_id)):
+                    try:
+                        await pipe.watch(game_id)
+                        pipe.json().arrpop(game_id, '.unconfirmed_players', index)
+                        pipe.json().arrappend(game_id, '.confirmed_players', player_id)
+                        self.pool.json().get(game_id, '.unconfirmed_players')
+                        results = await pipe.execute()
+                        
+                        # TODO make sure returning right thing
+                        return results[2][1]
 
-        self.pool.transaction(test, game_id)
-        pipe.watch(game_id)
-
-        if pipe.get(game_id):
-            if (index := pipe.json().arrindex(game_id, '.unconfirmed_player', player_id)):
-                pipe.json().arrpop(game_id, '.unconfirmed_players', confirmed_player_index)
-                pipe.json().arrappend(game_id, '.confirmed_players', player_id)
-                self.pool.json().get(game_id, '.unconfirmed_players')
+                    except redis.WatchError:
+                        continue
+                else:
+                    raise PlayerNotFound(player_id)
             else:
-                raise PlayerNotFound(player_id)
-        else:
-            raise GameNotFound()
+                raise GameNotFound()
             
-        await pipe.execute()
                                 
             
         
@@ -108,6 +114,7 @@ class GameAdmin:
             status = 0,
             game = game,
             bet = bet,
+            starting_player = player_one,
             ready_players = [],
             queued_players = [],
             confirmed_players = [player_one],
@@ -116,35 +123,35 @@ class GameAdmin:
         
         self.bot.game_status.add_game(game_id, game_details)
         
-        await self.confirm_game(game_id)
-    
+        await self.confirm_game(game_id, game_details)
 
     # ---------------------------------------------------------------------------- #
     
-    async def player_confirm(self, game_id: GameId, player_id: int):
-        self.bot.game_status.player_confirm(game_id, player_id)
+    async def player_confirm(self, player_id: int, game_id: GameId):
+        unconfirmed_list = await self.bot.game_status.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
             self.bot.game_admin.start_game(game_id)
 
-    async def confirm_game(self, game_id: GameId):
-        unconfirmed_players = self.bot.game_status.get_game(game_id).unconfirmed_players
-
-        for player_id in unconfirmed_players:
-            await self.__send_confirm(player_id)
+    async def confirm_game(self, game_id: GameId, game_details: GameState):
+        for player_id in game_details.unconfirmed_players:
+            await self.__send_confirm(player_id, game_id, game_details)
         
-    async def __send_confirm(self, player_id: int):
+    async def __send_confirm(self, player_id: int, game_id: GameId, game_details: GameState):
+        player_one = self.bot.get_user(game_details.starting_player)
         unconfimed_player = self.bot.get_user(player_id)
         
-        if unconfimed_player:
-            if not unconfimed_player.dm_channel:
-                await unconfimed_player.create_dm()
-            
-            await unconfimed_player.dm_channel.send('hi')
+        if not unconfimed_player.dm_channel:
+            dm = await unconfimed_player.create_dm()
         else:
-            raise PlayerNotFound
-    
-    
+            dm = unconfimed_player.dm_channel
+        
+        message = f'{player_one.name} wants to play {game_details.game}'
+        
+        if game_details.bet:
+            message += f' for {game_details.bet}'
+
+        await dm.send(message, view=GameConfirm(self.bot, game_id))
     
     async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
         pass
@@ -186,13 +193,13 @@ class GameConfirm(discord.ui.View):
     
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.bot.game_status.player_confirm(self.game_id, interaction.user.id)
+        await self.bot.game_admin.player_confirm(interaction.user.id, self.game_id)
         await interaction.response.send_message('Game accepted!')
 
 
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.bot.game_status.reject_game(self.game_id, interaction.user)
+        await self.bot.game_admin.reject_game(self.game_id, interaction.user)
 
 
