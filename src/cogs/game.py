@@ -25,10 +25,18 @@ class Game(commands.GroupCog, name="game"):
             player_eight: Optional[discord.User],
     ) -> None:
         
-        player_one = interaction.user.id
+        player_one = interaction.user
 
-        players = [interaction.user, player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
-        players = [player.id for player in players if player != None]
+        # Important cause interaction.user can return member
+        if type(player_one) is not discord.User:
+            await interaction.response.send_message('Get member not user')
+            return
+
+        # Sets up data about players
+        players = [player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
+        players = [player for player in players if player != None]
+        player_names = {player.id:player.name for player in (players + [player_one])}
+        player_ids = [player.id for player in players]
         
         game_admin = self.bot.game_admin
         
@@ -52,7 +60,7 @@ class Game(commands.GroupCog, name="game"):
             
             
         try:
-            await game_admin.initialize_game(game_name, bet if bet else 0, player_one, players)
+            await game_admin.initialize_game(game_name, bet if bet else 0, player_one.id, player_ids, player_names)
             return await interaction.response.send_message('Game request processed successfully')
         except PlayerNotFound:
             return await interaction.response.send_message('Error getting one of the players')

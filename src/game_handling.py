@@ -4,14 +4,13 @@ import discord
 import os
 import random
 from main import Bot
-from datetime import datetime
-from typing import List
+from typing import List, Mapping
 from dataclasses import dataclass, asdict
 import redis.asyncio as redis
-from redis.commands.json.path import Path
 from games.tests import GameInfo
 from types import ModuleType
 from exceptions import GameNotFound, PlayerNotFound
+from datetime import timedelta
 
 
 @dataclass
@@ -21,7 +20,7 @@ class GameState:
     game: str
     bet: int
     starting_player: int
-    ready_players: List[int]
+    player_names: Mapping[int, str]
     queued_players: List[int]
     confirmed_players: List[int]
     unconfirmed_players: List[int]
@@ -40,8 +39,11 @@ class GameStatus:
         raise GameNotFound
          
     async def add_game(self, game_id: GameId, state: GameState):
-        # TODO add timer to clear old or errored out games
         await self.pool.json().set(game_id, '.', asdict(state))
+        await self.pool.expire(game_id, timedelta(minutes=15))
+    
+    async def delete_game(self, game_id: GameId):
+        await self.pool.delete(game_id)
 
     async def player_confirm(self, game_id: GameId, player_id: int) -> List[int]:
         async with self.pool.pipeline() as pipe:
@@ -104,7 +106,8 @@ class GameAdmin:
             game: str,
             bet: int,
             player_one: int,
-            players: List[int]
+            player_ids: List[int],
+            player_names: Mapping[int, str]
         ):
         
         game_id = ''.join(random.choices(
@@ -118,10 +121,10 @@ class GameAdmin:
             game = game,
             bet = bet,
             starting_player = player_one,
-            ready_players = [],
+            player_names = player_names,
             queued_players = [],
             confirmed_players = [player_one],
-            unconfirmed_players = players
+            unconfirmed_players = player_ids
         )
         
         await self.bot.game_status.add_game(game_id, game_details)
@@ -154,7 +157,7 @@ class GameAdmin:
         if game_details.bet:
             message += f' for {game_details.bet}'
 
-        await dm.send(message, view=GameConfirm(self.bot, game_id))
+        await dm.send(message, view=GameConfirm(self.bot, game_id), delete_after=60*15)
     
     async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
         pass
@@ -162,6 +165,8 @@ class GameAdmin:
     # ---------------------------------------------------------------------------- #
 
     def start_game(self, game_id: GameId):
+        # TODO add to game status expire timer
+        print("hi")
         pass
 
     def game_end(self):
@@ -175,19 +180,8 @@ class GameAdmin:
     def clear_game(self, game_id: GameId):
         pass
 
+# ---------------------------------------------------------------------------- #
 
-            
-# class GameData:
-#     def __init__(self):
-#         pass
-    
-
-# class GameBase:
-    
-#     def play_move()
-    
-#     def get_game_data(key):
-#         self.base_data['game_data'][key]
 class GameConfirm(discord.ui.View):
     def __init__(self, bot: Bot, game_id: GameId):
         self.bot = bot
@@ -195,14 +189,13 @@ class GameConfirm(discord.ui.View):
         super().__init__()
     
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
         await self.bot.game_admin.player_confirm(interaction.user.id, self.game_id)
         await interaction.response.send_message('Game accepted!')
 
-
-
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
         await self.bot.game_admin.reject_game(self.game_id, interaction.user)
+        await interaction.response.send_message('Game rejected!')
 
 

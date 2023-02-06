@@ -7,8 +7,7 @@ from psycopg_pool.pool_async import AsyncConnectionPool as PgConnectionPool
 from exceptions import PlayerNotFound
 
 import game_handling
-import user_handling
-
+import user_status
 
 class Bot(commands.Bot):
     def __init__(
