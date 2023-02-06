@@ -34,34 +34,37 @@ class GameStatus:
         self.pool = redis.Redis(db=1)
         self.bot = bot
     
-    def get_game(self, game_id: GameId) -> GameState:
-        if self.pool.exists(game_id):
-            return GameState(**self.pool.json().get(game_id))
+    async def get_game(self, game_id: GameId) -> GameState:
+        if await self.pool.exists(game_id):
+            return GameState(**await self.pool.json().get(game_id))
         raise GameNotFound
          
-    def add_game(self, game_id: GameId, state: GameState):
-        self.pool.json().set(game_id, '.', asdict(state))
+    async def add_game(self, game_id: GameId, state: GameState):
+        # TODO add timer to clear old or errored out games
+        await self.pool.json().set(game_id, '.', asdict(state))
 
     async def player_confirm(self, game_id: GameId, player_id: int) -> List[int]:
-        with await self.pool.pipeline() as pipe:
-            while await self.pool.exists(game_id):
-                if (index := self.pool.json().arrindex(game_id, '.unconfirmed_player', player_id)):
+        async with self.pool.pipeline() as pipe:
+            await pipe.watch(game_id)
+            # Make sure game exists while operating on it
+            while await pipe.exists(game_id):
+                # Make sure player exists
+                if ((index := await pipe.json().arrindex(game_id, '.unconfirmed_players', player_id)) != None):
                     try:
-                        await pipe.watch(game_id)
+                        # Switch to buffered mode after watch
+                        pipe.multi()
                         pipe.json().arrpop(game_id, '.unconfirmed_players', index)
                         pipe.json().arrappend(game_id, '.confirmed_players', player_id)
-                        self.pool.json().get(game_id, '.unconfirmed_players')
+                        pipe.json().get(game_id, '.unconfirmed_players')
                         results = await pipe.execute()
                         
-                        # TODO make sure returning right thing
-                        return results[2][1]
+                        return results[2]
 
                     except redis.WatchError:
                         continue
                 else:
                     raise PlayerNotFound(player_id)
-            else:
-                raise GameNotFound()
+            raise GameNotFound()
             
                                 
             
@@ -84,9 +87,9 @@ class GameAdmin:
         details.check_player_count(player_count)
 
     def get_game_details(self, game_name: str) -> GameInfo:
-        if (game_module := self.loaded_games[game_name]) != None:
-            return game_module.detail
-        return self.__load_game(game_name).detail
+        if (game_module := self.loaded_games.get(game_name)) != None:
+            return game_module.details
+        return self.__load_game(game_name).details
 
     # Not to be called externally and only if the game isnt loaded already
     def __load_game(self, game_name:str) -> ModuleType:
@@ -121,7 +124,7 @@ class GameAdmin:
             unconfirmed_players = players
         )
         
-        self.bot.game_status.add_game(game_id, game_details)
+        await self.bot.game_status.add_game(game_id, game_details)
         
         await self.confirm_game(game_id, game_details)
 
@@ -138,8 +141,8 @@ class GameAdmin:
             await self.__send_confirm(player_id, game_id, game_details)
         
     async def __send_confirm(self, player_id: int, game_id: GameId, game_details: GameState):
-        player_one = self.bot.get_user(game_details.starting_player)
-        unconfimed_player = self.bot.get_user(player_id)
+        player_one = await self.bot.get_user(game_details.starting_player)
+        unconfimed_player = await self.bot.get_user(player_id)
         
         if not unconfimed_player.dm_channel:
             dm = await unconfimed_player.create_dm()

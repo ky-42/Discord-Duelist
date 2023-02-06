@@ -8,7 +8,7 @@ class GameInfo:
     
     def check_player_count(self, player_count):
         if player_count < self.min_players:
-            raise NotEnoughPlayers
+            raise NotEnoughPlayers(player_count, self.min_players)
         if player_count > self.max_players:
-            raise ToManyPlayers
+            raise ToManyPlayers(player_count, self.max_players)
         return True

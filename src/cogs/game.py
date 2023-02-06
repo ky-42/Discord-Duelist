@@ -24,12 +24,10 @@ class Game(commands.GroupCog, name="game"):
             player_seven: Optional[discord.User],
             player_eight: Optional[discord.User],
     ) -> None:
-        if not interaction.message:
-            return await interaction.response.send_message("Interaction message not found")
         
         player_one = interaction.user.id
 
-        players = [player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
+        players = [interaction.user, player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
         players = [player.id for player in players if player != None]
         
         game_admin = self.bot.game_admin

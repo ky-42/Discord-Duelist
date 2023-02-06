@@ -35,18 +35,24 @@ class Bot(commands.Bot):
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
-    def get_user(self, user_id: int) -> discord.User:
-        user_object = super().get_user(user_id)
-        
-        if user_object:
+    async def get_user(self, user_id: int) -> discord.User:
+        if (user_object := super().get_user(user_id)):
             return user_object
         else:
-            raise PlayerNotFound(user_id)
+            if (fetched_user := await super().fetch_user(user_id)):
+                return fetched_user
+            else:
+                raise PlayerNotFound(user_id)
+
+
 
 def main():
     #TODO update to only needed intents
-    intents = discord.Intents.default()
-    bot = Bot(command_prefix="/", intents=intents)
+    intents = discord.Intents()
+    intents.dm_messages = True
+    intents.dm_reactions = True
+    intents.members = True
+    bot = Bot(command_prefix="/", intents=intents, member_cache_flags=discord.MemberCacheFlags.from_intents(intents))
 
     # Gets token from env and runs bot with it
     load_dotenv()

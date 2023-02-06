@@ -1,3 +1,3 @@
-from ..tests import GameOptions
+from ..tests import GameInfo
 
-GameOptions(2, 2)
+details = GameInfo(1, 2)
