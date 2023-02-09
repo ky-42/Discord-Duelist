@@ -27,7 +27,6 @@ class GameState:
 
 GameId = str
 
-
 class GameStatus:
     def __init__(self, bot: Bot) -> None:
         self.pool = redis.Redis(db=1)
@@ -73,6 +72,8 @@ class GameStatus:
         
 
 class GameAdmin:
+
+
     def __init__(self, bot: Bot):
         self.bot = bot
 
@@ -127,6 +128,8 @@ class GameAdmin:
             unconfirmed_players = player_ids
         )
         
+        # TODO make sure players have bet money
+        
         await self.bot.game_status.add_game(game_id, game_details)
         
         await self.confirm_game(game_id, game_details)
@@ -137,7 +140,7 @@ class GameAdmin:
         unconfirmed_list = await self.bot.game_status.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
-            self.bot.game_admin.start_game(game_id)
+            self.bot.game_admin.game_confirmed(game_id)
 
     async def confirm_game(self, game_id: GameId, game_details: GameState):
         for player_id in game_details.unconfirmed_players:
@@ -164,9 +167,13 @@ class GameAdmin:
 
     # ---------------------------------------------------------------------------- #
 
-    def start_game(self, game_id: GameId):
+    def game_confirmed(self, game_id: GameId):
         # TODO add to game status expire timer
+        # TODO check if game needs to be qued
         print("hi")
+        pass
+    
+    def start_game(self, game_id: GameId):
         pass
 
     def game_end(self):
