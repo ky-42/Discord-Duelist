@@ -148,12 +148,8 @@ class GameAdmin:
         
     async def __send_confirm(self, player_id: int, game_id: GameId, game_details: GameState):
         player_one = await self.bot.get_user(game_details.starting_player)
-        unconfimed_player = await self.bot.get_user(player_id)
         
-        if not unconfimed_player.dm_channel:
-            dm = await unconfimed_player.create_dm()
-        else:
-            dm = unconfimed_player.dm_channel
+        dm = self.bot.get_dm_channel(player_id)
         
         message = f'{player_one.name} wants to play {game_details.game}'
         
@@ -163,7 +159,16 @@ class GameAdmin:
         await dm.send(message, view=GameConfirm(self.bot, game_id), delete_after=60*15)
     
     async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
-        pass
+        game_details = await self.bot.game_status.get_game(game_id)
+        
+        for accepted_player_id in game_details.confirmed_players:
+            try:
+                await self.bot.get_dm_channel(accepted_player_id).send(f'{rejecting_player.name} declined the game of {game_details.game}')
+            except:
+                print('User not found reject game')
+        
+        await self.bot.game_status.delete_game(game_id)
+            
 
     # ---------------------------------------------------------------------------- #
 

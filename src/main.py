@@ -42,6 +42,15 @@ class Bot(commands.Bot):
                 return fetched_user
             else:
                 raise PlayerNotFound(user_id)
+    
+    async def get_dm_channel(self, user_id: int):
+        
+        userToDm = await self.get_user(user_id)
+        
+        if not userToDm.dm_channel:
+            return await unconfimed_player.create_dm()
+        else:
+            return unconfimed_player.dm_channel
 
 
 
