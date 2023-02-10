@@ -7,7 +7,6 @@ from psycopg_pool.pool_async import AsyncConnectionPool as PgConnectionPool
 from exceptions import PlayerNotFound
 
 import game_handling
-import user_status
 
 class Bot(commands.Bot):
     def __init__(
@@ -48,9 +47,9 @@ class Bot(commands.Bot):
         userToDm = await self.get_user(user_id)
         
         if not userToDm.dm_channel:
-            return await unconfimed_player.create_dm()
+            return await userToDm.create_dm()
         else:
-            return unconfimed_player.dm_channel
+            return userToDm.dm_channel
 
 
 

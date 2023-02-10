@@ -1,3 +1,4 @@
+import discord
 from dataclasses import dataclass
 from exceptions import ToManyPlayers, NotEnoughPlayers
 
@@ -5,6 +6,7 @@ from exceptions import ToManyPlayers, NotEnoughPlayers
 class GameInfo:
     min_players: int
     max_players: int
+    thumbnail_file_path: str 
     
     def check_player_count(self, player_count):
         if player_count < self.min_players:

@@ -27,11 +27,6 @@ class Game(commands.GroupCog, name="game"):
         
         player_one = interaction.user
 
-        # Important cause interaction.user can return member
-        if type(player_one) is not discord.User:
-            await interaction.response.send_message('Get member not user')
-            return
-
         # Sets up data about players
         players = [player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
         players = [player for player in players if player != None]
@@ -45,7 +40,7 @@ class Game(commands.GroupCog, name="game"):
         # access to the interaction object and it dosen't need to be passed around and
         # I dont have a tone of if statments
         try:
-            game_admin.check_game_details(game_name=game_name, player_count=len(players))
+            game_admin.check_game_details(game_name=game_name, player_count=len(players)-1)
         except ModuleNotFoundError:
             return await interaction.response.send_message("Game not found")
         except NotEnoughPlayers as e:

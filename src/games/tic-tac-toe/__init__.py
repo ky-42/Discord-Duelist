@@ -1,3 +1,6 @@
+import discord
+import os
+
 from ..tests import GameInfo
 
-details = GameInfo(1, 2)
+details = GameInfo(1, 5, f'{os.path.dirname(__file__)}/thumb.jpg')

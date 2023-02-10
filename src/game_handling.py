@@ -149,21 +149,37 @@ class GameAdmin:
     async def __send_confirm(self, player_id: int, game_id: GameId, game_details: GameState):
         player_one = await self.bot.get_user(game_details.starting_player)
         
-        dm = self.bot.get_dm_channel(player_id)
+        dm = await self.bot.get_dm_channel(player_id)
         
-        message = f'{player_one.name} wants to play {game_details.game}'
+        message = discord.Embed(
+            title=f'{game_details.player_names[game_details.starting_player]} wants to play a game!',
+        )
+        
+        message.add_field(name='Game', value=f'{game_details.game}', inline=True)
+        other_player_names = []
+        for other_players_ids in game_details.player_names.keys():
+            print(other_players_ids)
+            if other_players_ids != player_id and other_players_ids != game_details.starting_player:
+                other_player_names.append(game_details.player_names[other_players_ids])
+        print(other_player_names)
+        if len(other_player_names):
+            message.add_field(name='Other Players', value=', '.join(other_player_names), inline=True)
+        
+        gamea = self.get_game_details(game_details.game)
+        file = discord.File(gamea.thumbnail_file_path, filename="abc.png")
+        message.set_thumbnail(url=f'attachment://{file.filename}')
         
         if game_details.bet:
-            message += f' for {game_details.bet}'
+            message.add_field(name='Bet', value=game_details.bet, inline=False)
 
-        await dm.send(message, view=GameConfirm(self.bot, game_id), delete_after=60*15)
+        await dm.send(embed=message, view=GameConfirm(self.bot, game_id), delete_after=60*15, file=file)
     
     async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
         game_details = await self.bot.game_status.get_game(game_id)
         
         for accepted_player_id in game_details.confirmed_players:
             try:
-                await self.bot.get_dm_channel(accepted_player_id).send(f'{rejecting_player.name} declined the game of {game_details.game}')
+                await (await self.bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
             except:
                 print('User not found reject game')
         
@@ -203,11 +219,13 @@ class GameConfirm(discord.ui.View):
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
         await self.bot.game_admin.player_confirm(interaction.user.id, self.game_id)
-        await interaction.response.send_message('Game accepted!')
+        if interaction.message:
+            await interaction.message.edit(delete_after=5)
+        await interaction.response.send_message('Game accepted!', delete_after=5)
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
         await self.bot.game_admin.reject_game(self.game_id, interaction.user)
-        await interaction.response.send_message('Game rejected!')
-
-
+        if interaction.message:
+            await interaction.message.edit(delete_after=5)
+        await interaction.response.send_message('Game rejected!', delete_after=5)
