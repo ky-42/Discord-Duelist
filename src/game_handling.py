@@ -136,43 +136,24 @@ class GameAdmin:
 
     # ---------------------------------------------------------------------------- #
     
+    async def confirm_game(self, game_id: GameId, game_state: GameState):
+        for player_id in game_state.unconfirmed_players:
+            await self.__send_confirm(player_id, game_id, game_state)
+        
+    async def __send_confirm(self, player_id: int, game_id: GameId, game_state: GameState):
+        player_one = await self.bot.get_user(game_state.starting_player)
+        
+        dm = await self.bot.get_dm_channel(player_id)
+
+        await dm.send(embed=create_confirm_embed(game_state, self.get_game_details(game_state.game)), view=GameConfirm(self.bot, game_id), delete_after=60*15, file=file)
+
+    # ---------------------------------------------------------------------------- #
+
     async def player_confirm(self, player_id: int, game_id: GameId):
         unconfirmed_list = await self.bot.game_status.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
             self.bot.game_admin.game_confirmed(game_id)
-
-    async def confirm_game(self, game_id: GameId, game_details: GameState):
-        for player_id in game_details.unconfirmed_players:
-            await self.__send_confirm(player_id, game_id, game_details)
-        
-    async def __send_confirm(self, player_id: int, game_id: GameId, game_details: GameState):
-        player_one = await self.bot.get_user(game_details.starting_player)
-        
-        dm = await self.bot.get_dm_channel(player_id)
-        
-        message = discord.Embed(
-            title=f'{game_details.player_names[game_details.starting_player]} wants to play a game!',
-        )
-        
-        message.add_field(name='Game', value=f'{game_details.game}', inline=True)
-        other_player_names = []
-        for other_players_ids in game_details.player_names.keys():
-            print(other_players_ids)
-            if other_players_ids != player_id and other_players_ids != game_details.starting_player:
-                other_player_names.append(game_details.player_names[other_players_ids])
-        print(other_player_names)
-        if len(other_player_names):
-            message.add_field(name='Other Players', value=', '.join(other_player_names), inline=True)
-        
-        gamea = self.get_game_details(game_details.game)
-        file = discord.File(gamea.thumbnail_file_path, filename="abc.png")
-        message.set_thumbnail(url=f'attachment://{file.filename}')
-        
-        if game_details.bet:
-            message.add_field(name='Bet', value=game_details.bet, inline=False)
-
-        await dm.send(embed=message, view=GameConfirm(self.bot, game_id), delete_after=60*15, file=file)
     
     async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
         game_details = await self.bot.game_status.get_game(game_id)
@@ -185,7 +166,6 @@ class GameAdmin:
         
         await self.bot.game_status.delete_game(game_id)
             
-
     # ---------------------------------------------------------------------------- #
 
     def game_confirmed(self, game_id: GameId):
@@ -209,6 +189,28 @@ class GameAdmin:
         pass
 
 # ---------------------------------------------------------------------------- #
+
+def create_confirm_embed(game_state: GameState, game_details: GameInfo):
+    message = discord.Embed(
+        title=f'{game_state.player_names[game_state.starting_player]} wants to play a game!',
+    )
+    
+    message.add_field(name='Game', value=f'{game_state.game}', inline=True)
+    other_player_names = []
+    for other_players_ids in game_state.player_names.keys():
+        if other_players_ids != player_id and other_players_ids != game_state.starting_player:
+            other_player_names.append(game_state.player_names[other_players_ids])
+    print(other_player_names)
+    if len(other_player_names):
+        message.add_field(name='Other Players', value=', '.join(other_player_names), inline=True)
+    
+    file = discord.File(game_details.thumbnail_file_path, filename="abc.png")
+    message.set_thumbnail(url=f'attachment://{file.filename}')
+    
+    if game_state.bet:
+        message.add_field(name='Bet', value=game_state.bet, inline=False)
+    
+    return message
 
 class GameConfirm(discord.ui.View):
     def __init__(self, bot: Bot, game_id: GameId):

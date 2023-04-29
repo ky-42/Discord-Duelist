@@ -64,28 +64,26 @@ class Game(commands.GroupCog, name="game"):
             print(e)
             return await interaction.response.send_message('Unknown error')
             
-
-
         
 
-    # @play.autocomplete('game')
-    async def game_autocomplete(self, interaction: discord.Interaction, current: str):
-        return [
-            app_commands.Choice(name="abc", value="abc")
-        ]
 
+    # # @play.autocomplete('game')
+    # async def game_autocomplete(self, interaction: discord.Interaction, current: str):
+    #     return [
+    #         app_commands.Choice(name="abc", value="abc")
+    #     ]
 
-    @app_commands.command(name="queue")
-    async def queue(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+    # @app_commands.command(name="queue")
+    # async def queue(self, interaction: discord.Interaction) -> None:
+    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
-    @app_commands.command(name="status")
-    async def status(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+    # @app_commands.command(name="status")
+    # async def status(self, interaction: discord.Interaction) -> None:
+    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
-    @app_commands.command(name="quit")
-    async def quit(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+    # @app_commands.command(name="quit")
+    # async def quit(self, interaction: discord.Interaction) -> None:
+    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
 async def setup(bot: Bot) -> None:
   await bot.add_cog(Game(bot))

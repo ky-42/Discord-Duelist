@@ -54,7 +54,6 @@ class Bot(commands.Bot):
 
 
 def main():
-    #TODO update to only needed intents
     intents = discord.Intents()
     intents.dm_messages = True
     intents.dm_reactions = True
