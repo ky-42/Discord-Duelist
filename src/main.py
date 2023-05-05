@@ -5,12 +5,12 @@ from discord.ext import commands
 import redis.asyncio as redis
 from psycopg_pool.pool_async import AsyncConnectionPool as PgConnectionPool
 from exceptions import PlayerNotFound
-
 import game_handling
+
 
 class Bot(commands.Bot):
     def __init__(
-        self, 
+        self,
         *args,
         **kwags
     ):
@@ -22,14 +22,14 @@ class Bot(commands.Bot):
         # # Creates connection pools for user db and game cache
         # self.game_data_pool = redis.Redis(db=0)
         # self.user_data_pool = PgConnectionPool(f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost/{os.getenv('POSTGRES_DB')}")
-        
+
         # Loads all cogs
         await self.load_extension("cogs.game")
         await self.load_extension("cogs.tournament")
         await self.load_extension("cogs.money")
 
         # Syncs commands to mals server
-        MY_GUILD = discord.Object(id=715439787288428605) 
+        MY_GUILD = discord.Object(id=715439787288428605)
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
@@ -41,24 +41,29 @@ class Bot(commands.Bot):
                 return fetched_user
             else:
                 raise PlayerNotFound(user_id)
-    
-    async def get_dm_channel(self, user_id: int):
-        
+
+    async def get_dm_channel(self, user_id: int) -> discord.DMChannel:
+
         userToDm = await self.get_user(user_id)
-        
+
         if not userToDm.dm_channel:
             return await userToDm.create_dm()
         else:
             return userToDm.dm_channel
 
 
-
-def main():
+def create_intents() -> discord.Intents:
     intents = discord.Intents()
     intents.dm_messages = True
     intents.dm_reactions = True
     intents.members = True
-    bot = Bot(command_prefix="/", intents=intents, member_cache_flags=discord.MemberCacheFlags.from_intents(intents))
+    return intents
+
+
+def main():
+    intents = create_intents()
+    bot = Bot(command_prefix="/", intents=intents,
+              member_cache_flags=discord.MemberCacheFlags.from_intents(intents))
 
     # Gets token from env and runs bot with it
     load_dotenv()
@@ -66,7 +71,8 @@ def main():
     if token:
         bot.run(token)
     else:
-        print("Please set token in .env")
+        print("Please set DISCORD_TOKEN in .env")
+
 
 if __name__ == "__main__":
     main()

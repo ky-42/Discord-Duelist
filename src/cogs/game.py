@@ -1,71 +1,86 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord import ui
 from typing import Optional
 from main import Bot
 from exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
 
+
 class Game(commands.GroupCog, name="game"):
     def __init__(self, bot: Bot) -> None:
-        self.bot = bot
         super().__init__()
+        self.bot = bot
 
     @app_commands.command(name="play")
     async def play(
             self,
             interaction: discord.Interaction,
             game_name: str,
-            bet: Optional[app_commands.Range[int, 10]],
-            player_two: Optional[discord.User],
-            player_three: Optional[discord.User],
-            player_four: Optional[discord.User],
-            player_five: Optional[discord.User],
-            player_six: Optional[discord.User],
-            player_seven: Optional[discord.User],
-            player_eight: Optional[discord.User],
     ) -> None:
-        
-        player_one = interaction.user
 
-        # Sets up data about players
-        players = [player_two, player_three, player_four, player_five, player_six, player_seven, player_eight]
-        players = [player for player in players if player != None]
-        player_names = {player.id:player.name for player in (players + [player_one])}
-        player_ids = [player.id for player in players]
-        
         game_admin = self.bot.game_admin
-        
-        # Instead of using if statments both in this function and in called functions
-        # I decided to raise exceptions in called funcs and catch them here so I have
-        # access to the interaction object and it dosen't need to be passed around and
-        # I dont have a tone of if statments
-        try:
-            game_admin.check_game_details(game_name=game_name, player_count=len(players)-1)
-        except ModuleNotFoundError:
-            return await interaction.response.send_message("Game not found")
-        except NotEnoughPlayers as e:
-            return await interaction.response.send_message(str(e))
-        except ToManyPlayers as e:
-            return await interaction.response.send_message(str(e))
-        except Exception as e:
-            # TODO add error loging here
-            print(e)
-            return await interaction.response.send_message('Unknown error')
 
-            
-            
         try:
-            await game_admin.initialize_game(game_name, bet if bet else 0, player_one.id, player_ids, player_names)
-            return await interaction.response.send_message('Game request processed successfully')
-        except PlayerNotFound:
-            return await interaction.response.send_message('Error getting one of the players')
-        except Exception as e:
-            # TODO add error loging here
-            print(e)
-            return await interaction.response.send_message('Unknown error')
-            
-        
+            game_details = game_admin.get_game_details(game_name)
 
+            return await interaction.response.send_message(
+                content="Please select the players you want to play with",
+                ephemeral=True,
+                view=GetPlayersClassInner(
+                    game_name=game_name,
+                    max=game_details.max_players,
+                    min=game_details.min_players
+                )
+            )
+
+        except Exception as e:
+            return await interaction.response.send_message(e)
+
+
+class GetPlayersClassInner(ui.View):
+    def __init__(self, game_name: str, min: int, max: int):
+        super().__init__()
+        self.game_name = game_name
+
+        self.user_select = ui.UserSelect(
+            placeholder="Select a user please!",
+            min_values=min,
+            max_values=max,
+            row=0,
+            custom_id="user-select"
+        )
+
+        self.add_item(self.user_select)
+
+    @ui.button(label="Confirm Players", style=discord.ButtonStyle.green, row=1)
+    async def confirm(self, interaction: discord.Interaction, _: ui.Button):
+        player_one = interaction.user
+        secondary_players = self.user_select.values
+
+        if len(secondary_players) < self.user_select.min_values or len(secondary_players) > self.user_select.max_values:
+            self.stop()
+            return await interaction.response.send_message(
+                content="Problem with number of player",
+                ephemeral=True
+            )
+        else:
+            await interaction.client.game_admin.initialize_game(
+                game_name=self.game_name,
+                bet=0,
+                player_one=player_one.id,
+                secondary_player_ids=[
+                    player.id for player in self.user_select.values
+                ],
+                player_names={
+                    player.id: player.name for player in
+                    (secondary_players + [player_one])
+                }
+            )
+
+    @ui.button(label="Cancel Game", style=discord.ButtonStyle.red, row=1)
+    async def cancel(self, interaction: discord.Interaction, _: ui.Button):
+        self.stop()
 
     # # @play.autocomplete('game')
     # async def game_autocomplete(self, interaction: discord.Interaction, current: str):
@@ -85,5 +100,6 @@ class Game(commands.GroupCog, name="game"):
     # async def quit(self, interaction: discord.Interaction) -> None:
     #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
+
 async def setup(bot: Bot) -> None:
-  await bot.add_cog(Game(bot))
+    await bot.add_cog(Game(bot))
