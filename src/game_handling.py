@@ -1,88 +1,21 @@
 import importlib
-import string
 import discord
 import os
-import random
+from data_wrappers import GameStatus
 from main import Bot
 from typing import List, Mapping
-from dataclasses import dataclass, asdict
 import redis.asyncio as redis
 from games.tests import GameInfo
 from types import ModuleType
-from exceptions import ActiveGameNotFound, PlayerNotFound, GameNotFound
-from datetime import timedelta
-
-
-@dataclass
-class GameState:
-    # 0 = unconfirmed | 1 = confirmed but queued | 2 = in progress | 3 = finished
-    status: int
-    game: str
-    bet: int
-    starting_player: int
-    player_names: Mapping[int, str]
-    queued_players: List[int]
-    confirmed_players: List[int]
-    unconfirmed_players: List[int]
-
-
-GameId = str
-
-
-class GameStatus:
-    pool = redis.Redis(db=1)
-
-    @staticmethod
-    async def get_game(game_id: GameId) -> GameState:
-        if await GameStatus.pool.exists(game_id):
-            return GameState(**await GameStatus.pool.json().get(game_id))
-        raise ActiveGameNotFound
-
-    @staticmethod
-    async def add_game(game_id: GameId, state: GameState, timeout_minutes: int):
-        await GameStatus.pool.json().set(game_id, '.', asdict(state))
-        await GameStatus.pool.expire(game_id, timedelta(minutes=timeout_minutes))
-
-    @staticmethod
-    async def delete_game(game_id: GameId):
-        await GameStatus.pool.delete(game_id)
-
-    @staticmethod
-    async def player_confirm(game_id: GameId, player_id: int) -> List[int]:
-        async with GameStatus.pool.pipeline() as pipe:
-            await pipe.watch(game_id)
-            # Make sure game exists while operating on it
-            while await pipe.exists(game_id):
-                # Make sure player exists
-                if ((index := pipe.json().arrindex(game_id, '.unconfirmed_players', player_id)) != None):
-                    try:
-                        # Switch to buffered mode after watch
-                        pipe.multi()
-                        pipe.json().arrpop(game_id, '.unconfirmed_players', index)
-                        pipe.json().arrappend(game_id, '.confirmed_players', player_id)
-                        pipe.json().get(game_id, '.unconfirmed_players')
-                        results = await pipe.execute()
-
-                        return results[2]
-
-                    except redis.WatchError:
-                        continue
-                else:
-                    raise PlayerNotFound(player_id)
-            raise ActiveGameNotFound()
+from exceptions.game_exceptions import GameNotFound
 
 
 class GameAdmin:
+    timeout_minutes = 15
 
-    def __init__(self, bot: Bot):
-        self.bot = bot
-
-        self.timeout_minutes = 15
-
-        self.loaded_games: dict[str, None | ModuleType] = {}
-
-        for game_name in os.listdir("./games"):
-            self.loaded_games[game_name] = None
+    loaded_games: dict[str, None | ModuleType] = {
+        game_name: None for game_name in os.listdir("./games")
+    }
 
     # ---------------------------------------------------------------------------- #
 
@@ -115,16 +48,12 @@ class GameAdmin:
         # Does not include player one id
         secondary_player_ids: List[int],
         # Includes player one. Is in form {id: username}
-        player_names: Mapping[int, str]
+        player_names: Mapping[str, str]
     ):
 
-        game_id = ''.join(random.choices(
-            string.ascii_letters +
-            string.digits,
-            k=16
-        ))
+        game_id = GameStatus.create_game_id()
 
-        game_details = GameState(
+        game_details = GameStatus.GameState(
             status=0,
             game=game_name,
             bet=bet,
@@ -136,7 +65,7 @@ class GameAdmin:
         )
 
         # Adds game to game status store
-        await self.bot.game_status.add_game(
+        await GameStatus.add_game(
             game_id,
             game_details,
             self.timeout_minutes

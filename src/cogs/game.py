@@ -2,9 +2,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord import ui
-from typing import Optional
 from main import Bot
-from exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
+from exceptions.game_exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
 
 
 class Game(commands.GroupCog, name="game"):
@@ -18,8 +17,6 @@ class Game(commands.GroupCog, name="game"):
             interaction: discord.Interaction,
             game_name: str,
     ) -> None:
-
-        game_admin = self.bot.game_admin
 
         try:
             game_details = game_admin.get_game_details(game_name)
@@ -65,7 +62,7 @@ class GetPlayersClassInner(ui.View):
                 ephemeral=True
             )
         else:
-            await interaction.client.game_admin.initialize_game(
+            await .initialize_game(
                 game_name=self.game_name,
                 bet=0,
                 player_one=player_one.id,
@@ -73,7 +70,7 @@ class GetPlayersClassInner(ui.View):
                     player.id for player in self.user_select.values
                 ],
                 player_names={
-                    player.id: player.name for player in
+                    str(player.id): player.name for player in
                     (secondary_players + [player_one])
                 }
             )

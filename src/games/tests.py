@@ -1,6 +1,6 @@
 import discord
 from dataclasses import dataclass
-from exceptions import ToManyPlayers, NotEnoughPlayers
+from exceptions.game_exceptions import ToManyPlayers, NotEnoughPlayers
 
 @dataclass
 class GameInfo:
