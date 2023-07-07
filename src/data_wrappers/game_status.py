@@ -7,6 +7,7 @@ from dataclasses import dataclass, asdict
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import PlayerNotFound
 from .helpers import pipeline_watch
+from . import GameId
 
 class GameStatus:
     """
@@ -18,8 +19,6 @@ class GameStatus:
     
     __db_number = 1
     __pool = redis_sync.Redis(db=__db_number)
-
-    GameId = str
 
     @dataclass
     class GameState:

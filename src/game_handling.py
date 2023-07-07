@@ -1,14 +1,13 @@
 import importlib
 import discord
 import os
-from data_wrappers import GameStatus
-from main import Bot
+from data_wrappers import GameId, GameStatus
+from bot import bot
 from typing import List, Mapping
 import redis.asyncio as redis
 from games.tests import GameInfo
 from types import ModuleType
 from exceptions.game_exceptions import GameNotFound
-
 
 class GameAdmin:
     timeout_minutes = 15
@@ -19,29 +18,32 @@ class GameAdmin:
 
     # ---------------------------------------------------------------------------- #
 
-    def check_game_details(self, game_name: str, player_count: int) -> None:
-        details = self.get_game_details(game_name)
+    @staticmethod
+    def check_game_details(game_name: str, player_count: int) -> None:
+        details = GameAdmin.get_game_details(game_name)
 
         details.check_player_count(player_count)
 
-    def get_game_details(self, game_name: str) -> GameInfo:
+    @staticmethod
+    def get_game_details(game_name: str) -> GameInfo:
         try:
-            if (game_module := self.loaded_games.get(game_name)) != None:
+            if (game_module := GameAdmin.loaded_games.get(game_name)) != None:
                 return game_module.details
-            return self.__load_game(game_name).details
+            return GameAdmin.__load_game(game_name).details
         except:
             raise GameNotFound(game_name)
 
     # Not to be called externally and only if the game isnt loaded already
-    def __load_game(self, game_name: str) -> ModuleType:
+    @staticmethod
+    def __load_game(game_name: str) -> ModuleType:
         game = importlib.import_module(f"games.{game_name}")
-        self.loaded_games[game_name] = game
+        GameAdmin.loaded_games[game_name] = game
         return game
 
     # ---------------------------------------------------------------------------- #
 
+    @staticmethod
     async def initialize_game(
-        self,
         game_name: str,
         bet: int,
         player_one: int,
@@ -59,7 +61,6 @@ class GameAdmin:
             bet=bet,
             starting_player=player_one,
             player_names=player_names,
-            queued_players=[],
             confirmed_players=[player_one],
             unconfirmed_players=secondary_player_ids
         )
@@ -68,76 +69,85 @@ class GameAdmin:
         await GameStatus.add_game(
             game_id,
             game_details,
-            self.timeout_minutes
+            GameAdmin.timeout_minutes
         )
 
         # Sends out confirmations to secondary players
-        await self.confirm_game(game_id, game_details)
+        await GameAdmin.confirm_game(game_id, game_details)
 
     # ---------------------------------------------------------------------------- #
 
-    async def confirm_game(self, game_id: GameId, game_state: GameState):
+    @staticmethod
+    async def confirm_game(game_id: GameId, game_state: GameStatus.GameState):
         for player_id in game_state.unconfirmed_players:
-            await self.send_confirm(player_id, game_id, game_state)
+            await GameAdmin.send_confirm(player_id, game_id, game_state)
 
-    async def send_confirm(self, player_id: int, game_id: GameId, game_state: GameState):
+    @staticmethod
+    async def send_confirm(player_id: int, game_id: GameId, game_state: GameStatus.GameState):
 
-        dm = await self.bot.get_dm_channel(player_id)
+        dm = await bot.get_dm_channel(player_id)
 
         await dm.send(
             embed=create_confirm_embed(
                 game_state,
-                self.get_game_details(game_state.game)
+                GameAdmin.get_game_details(game_state.game)
             ),
-            view=GameConfirm(self.bot, game_id),
-            delete_after=60*self.timeout_minutes
+            view=GameConfirm(game_id),
+            delete_after=60*GameAdmin.timeout_minutes
         )
 
     # ---------------------------------------------------------------------------- #
 
-    async def player_confirm(self, player_id: int, game_id: GameId):
-        unconfirmed_list = await self.bot.game_status.player_confirm(game_id, player_id)
+    @staticmethod
+    async def player_confirm(player_id: int, game_id: GameId):
+        unconfirmed_list = await GameStatus.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
-            self.bot.game_admin.game_confirmed(game_id)
+            GameAdmin.game_confirmed(game_id)
 
-    async def reject_game(self, game_id: GameId, rejecting_player: discord.User | discord.Member):
-        game_details = await self.bot.game_status.get_game(game_id)
+    @staticmethod
+    async def reject_game(game_id: GameId, rejecting_player: discord.User | discord.Member):
+        game_details = await GameStatus.get_game(game_id)
 
         for accepted_player_id in game_details.confirmed_players:
             try:
-                await (await self.bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
+                await (await bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
             except:
                 print('User not found reject game')
 
-        await self.bot.game_status.delete_game(game_id)
+        await GameStatus.delete_game(game_id)
 
     # ---------------------------------------------------------------------------- #
 
-    def game_confirmed(self, game_id: GameId):
+    @staticmethod
+    def game_confirmed(game_id: GameId):
         # TODO add to game status expire timer
         # TODO check if game needs to be qued
         print("hi")
         pass
 
-    def start_game(self, game_id: GameId):
+    @staticmethod
+    def start_game(game_id: GameId):
         pass
 
-    def game_end(self):
+    @staticmethod
+    def game_end():
         pass
 
-    def cancel_game(self, game_id: GameId):
+    @staticmethod
+    def cancel_game(game_id: GameId):
         pass
 
     # Run this when there is an error and a game need to be cleaned up when not initilized
     # or half way through function
-    def clear_game(self, game_id: GameId):
+    @staticmethod
+    def clear_game(game_id: GameId):
         pass
 
 # ---------------------------------------------------------------------------- #
 
 
-def create_confirm_embed(game_state: GameState, game_details: GameInfo):
+def create_confirm_embed(game_state: GameStatus.GameState, game_details: GameInfo):
     message = discord.Embed(
         title=f'{game_state.player_names[game_state.starting_player]} wants to play a game!',
     )
@@ -163,21 +173,20 @@ def create_confirm_embed(game_state: GameState, game_details: GameInfo):
 
 
 class GameConfirm(discord.ui.View):
-    def __init__(self, bot: Bot, game_id: GameId):
-        self.bot = bot
+    def __init__(self, game_id: GameId):
         self.game_id = game_id
         super().__init__()
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await self.bot.game_admin.player_confirm(interaction.user.id, self.game_id)
+        await GameAdmin.player_confirm(interaction.user.id, self.game_id)
         if interaction.message:
             await interaction.message.edit(delete_after=5)
         await interaction.response.send_message('Game accepted!', delete_after=5)
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await self.bot.game_admin.reject_game(self.game_id, interaction.user)
+        await GameAdmin.reject_game(self.game_id, interaction.user)
         if interaction.message:
             await interaction.message.edit(delete_after=5)
         await interaction.response.send_message('Game rejected!', delete_after=5)

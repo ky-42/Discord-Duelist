@@ -2,14 +2,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord import ui
-from main import Bot
+from bot import Bot
+from game_handling import GameAdmin
 from exceptions.game_exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
 
 
 class Game(commands.GroupCog, name="game"):
-    def __init__(self, bot: Bot) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.bot = bot
 
     @app_commands.command(name="play")
     async def play(
@@ -19,7 +19,7 @@ class Game(commands.GroupCog, name="game"):
     ) -> None:
 
         try:
-            game_details = game_admin.get_game_details(game_name)
+            game_details = GameAdmin.get_game_details(game_name)
 
             return await interaction.response.send_message(
                 content="Please select the players you want to play with",
@@ -99,4 +99,4 @@ class GetPlayersClassInner(ui.View):
 
 
 async def setup(bot: Bot) -> None:
-    await bot.add_cog(Game(bot))
+    await bot.add_cog(Game())
