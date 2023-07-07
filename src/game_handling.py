@@ -12,6 +12,7 @@ from exceptions.game_exceptions import GameNotFound
 class GameAdmin:
     timeout_minutes = 15
 
+    # Stores the loaded game moduels
     loaded_games: dict[str, None | ModuleType] = {
         game_name: None for game_name in os.listdir("./games")
     }
@@ -26,6 +27,11 @@ class GameAdmin:
 
     @staticmethod
     def get_game_details(game_name: str) -> GameInfo:
+        """
+        Loads the game module if it isnt loaded already and returns the details
+        Each moduel should have a details attribute which is a GameInfo object at the top level
+        """
+
         try:
             if (game_module := GameAdmin.loaded_games.get(game_name)) != None:
                 return game_module.details
@@ -85,10 +91,12 @@ class GameAdmin:
     @staticmethod
     async def send_confirm(player_id: int, game_id: GameId, game_state: GameStatus.GameState):
 
+        # Gets the dm channel of the player to send the confirmation over
         dm = await bot.get_dm_channel(player_id)
 
         await dm.send(
             embed=create_confirm_embed(
+                player_id,
                 game_state,
                 GameAdmin.get_game_details(game_state.game)
             ),
@@ -109,6 +117,7 @@ class GameAdmin:
     async def reject_game(game_id: GameId, rejecting_player: discord.User | discord.Member):
         game_details = await GameStatus.get_game(game_id)
 
+        # Notifies players that have accepted the game that it has been cancelled
         for accepted_player_id in game_details.confirmed_players:
             try:
                 await (await bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
@@ -146,33 +155,42 @@ class GameAdmin:
 
 # ---------------------------------------------------------------------------- #
 
-
-def create_confirm_embed(game_state: GameStatus.GameState, game_details: GameInfo):
-    message = discord.Embed(
-        title=f'{game_state.player_names[game_state.starting_player]} wants to play a game!',
+def create_confirm_embed(player_id: int, game_state: GameStatus.GameState, game_details: GameInfo) -> discord.Embed:
+    message_embed = discord.Embed(
+        title=f'{game_state.player_names[str(game_state.starting_player)]} wants to play a game!',
     )
 
-    message.add_field(name='Game', value=f'{game_state.game}', inline=True)
-    other_player_names = []
-    for other_players_ids in game_state.player_names.keys():
-        if other_players_ids != player_id and other_players_ids != game_state.starting_player:
-            other_player_names.append(
-                game_state.player_names[other_players_ids])
-    print(other_player_names)
+    message_embed.add_field(name='Game', value=f'{game_state.game}', inline=True)
+
+    # Gets list of other request users names
+    other_player_names = [
+        game_state.player_names[other_players_ids]
+        for other_players_ids in game_state.player_names.keys()
+        if other_players_ids != player_id
+            and other_players_ids != game_state.starting_player
+    ]
+
+    # Adds other players names to embed
     if len(other_player_names):
-        message.add_field(name='Other Players', value=', '.join(
+        message_embed.add_field(name='Other Players', value=', '.join(
             other_player_names), inline=True)
 
+    # Adds game thumbnail to embed
     file = discord.File(game_details.thumbnail_file_path, filename="abc.png")
-    message.set_thumbnail(url=f'attachment://{file.filename}')
+    message_embed.set_thumbnail(url=f'attachment://{file.filename}')
 
+    # Adds bet to embed
     if game_state.bet:
-        message.add_field(name='Bet', value=game_state.bet, inline=False)
+        message_embed.add_field(name='Bet', value=game_state.bet, inline=False)
 
-    return message
+    return message_embed
 
 
 class GameConfirm(discord.ui.View):
+    """
+    UI for confirming a game
+    """
+
     def __init__(self, game_id: GameId):
         self.game_id = game_id
         super().__init__()
@@ -180,13 +198,19 @@ class GameConfirm(discord.ui.View):
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
         await GameAdmin.player_confirm(interaction.user.id, self.game_id)
+
+        # Will delete interaction after 5 seconds
         if interaction.message:
             await interaction.message.edit(delete_after=5)
+
         await interaction.response.send_message('Game accepted!', delete_after=5)
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
         await GameAdmin.reject_game(self.game_id, interaction.user)
+
+        # Will delete interaction after 5 seconds
         if interaction.message:
             await interaction.message.edit(delete_after=5)
+
         await interaction.response.send_message('Game rejected!', delete_after=5)

@@ -4,8 +4,6 @@ from discord.ext import commands
 from discord import ui
 from bot import Bot
 from game_handling import GameAdmin
-from exceptions.game_exceptions import NotEnoughPlayers, ToManyPlayers, PlayerNotFound
-
 
 class Game(commands.GroupCog, name="game"):
     def __init__(self) -> None:
@@ -21,6 +19,9 @@ class Game(commands.GroupCog, name="game"):
         try:
             game_details = GameAdmin.get_game_details(game_name)
 
+            # Sends out UI to select players this is done to avoid the users
+            # having to type out the names in inital interaction
+            # instead they can just select the users from a dropdown menu
             return await interaction.response.send_message(
                 content="Please select the players you want to play with",
                 ephemeral=True,
@@ -36,6 +37,10 @@ class Game(commands.GroupCog, name="game"):
 
 
 class GetPlayersClassInner(ui.View):
+    """
+    Dropdown menu to select players for a game
+    """
+
     def __init__(self, game_name: str, min: int, max: int):
         super().__init__()
         self.game_name = game_name
@@ -55,6 +60,7 @@ class GetPlayersClassInner(ui.View):
         player_one = interaction.user
         secondary_players = self.user_select.values
 
+        # Double checks that the number of players is allowed. Just in case
         if len(secondary_players) < self.user_select.min_values or len(secondary_players) > self.user_select.max_values:
             self.stop()
             return await interaction.response.send_message(
@@ -62,7 +68,7 @@ class GetPlayersClassInner(ui.View):
                 ephemeral=True
             )
         else:
-            await .initialize_game(
+            await GameAdmin.initialize_game(
                 game_name=self.game_name,
                 bet=0,
                 player_one=player_one.id,
