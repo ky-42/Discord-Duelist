@@ -1,7 +1,7 @@
 import importlib
 import discord
 import os
-from data_wrappers import GameId, GameStatus
+from data_wrappers import GameId, GameStatus, UserStatus
 from bot import bot
 from typing import List, Mapping
 import redis.asyncio as redis
@@ -19,14 +19,16 @@ class GameAdmin:
 
     # ---------------------------------------------------------------------------- #
 
+
+
     @staticmethod
     def check_game_details(game_name: str, player_count: int) -> None:
-        details = GameAdmin.get_game_details(game_name)
+        details = GameAdmin.get_game(game_name).details
 
         details.check_player_count(player_count)
 
     @staticmethod
-    def get_game_details(game_name: str) -> GameInfo:
+    def get_game(game_name: str) -> ModuleType:
         """
         Loads the game module if it isnt loaded already and returns the details
         Each moduel should have a details attribute which is a GameInfo object at the top level
@@ -34,8 +36,8 @@ class GameAdmin:
 
         try:
             if (game_module := GameAdmin.loaded_games.get(game_name)) != None:
-                return game_module.details
-            return GameAdmin.__load_game(game_name).details
+                return game_module
+            return GameAdmin.__load_game(game_name)
         except:
             raise GameNotFound(game_name)
 
@@ -111,47 +113,97 @@ class GameAdmin:
         unconfirmed_list = await GameStatus.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
-            GameAdmin.game_confirmed(game_id)
+            await GameAdmin.game_confirmed(game_id)
 
     @staticmethod
     async def reject_game(game_id: GameId, rejecting_player: discord.User | discord.Member):
         game_details = await GameStatus.get_game(game_id)
 
-        # Notifies players that have accepted the game that it has been cancelled
-        for accepted_player_id in game_details.confirmed_players:
-            try:
-                await (await bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
-            except:
-                print('User not found reject game')
-
-        await GameStatus.delete_game(game_id)
 
     # ---------------------------------------------------------------------------- #
 
     @staticmethod
-    def game_confirmed(game_id: GameId):
+    async def game_confirmed(game_id: GameId):
         # TODO add to game status expire timer
         # TODO check if game needs to be qued
-        print("hi")
-        pass
+
+        game_details = await GameStatus.get_game(game_id)
+
+        flag = False
+
+        for player_id in game_details.confirmed_players:
+            if not (await UserState.join_game(player_id, game_id)):
+                flag = True
+
+        if flag:
+            await GameStatus.set_game_queued(game_id)
+        else:
+            await GameStatus.start_game(game_id)
+            await GameAdmin.start_game(game_id)
+            
+        
 
     @staticmethod
-    def start_game(game_id: GameId):
-        pass
+    async def start_game(game_id: GameId):
+        game_details = await GameStatus.get_game(game_id)
+
+
+        for player_id in game_details.confirmed_players:
+            a = list(game_details.player_names.values())
+
+            a.remove(game_details.player_names[str(game_details.starting_player)])
+            a.remove(game_details.player_names[str(player_id)])
+
+            b = ', '.join(a[:-1]) + ' and ' + a[-1]
+
+            c = f'Game of {game_details.game} with {b} is starting!'
+
+            await bot.get_user(int(player_id)).send(
+                c
+            )
+
+        game_module = GameAdmin.get_game(game_details.game)
+        
+        game_module.start_game(game_id)
 
     @staticmethod
     def game_end():
+        # TODO update player status and call check game status to see if game needs to
+        # next queued game to see if all players are ready now
         pass
 
     @staticmethod
-    def cancel_game(game_id: GameId):
-        pass
+    async def cancel_game(game_id: GameId):
+        # Clear all game data from redis
+        # so update user status, remove game status, and game data
 
-    # Run this when there is an error and a game need to be cleaned up when not initilized
-    # or half way through function
-    @staticmethod
-    def clear_game(game_id: GameId):
-        pass
+        game_details = await GameStatus.get_game(game_id)
+
+        if game_details.status == 0:
+            # unconfirmed so just remove 
+            # Notifies players that have accepted the game that it has been cancelled
+            for accepted_player_id in game_details.confirmed_players:
+                try:
+                    await (await bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
+                except:
+                    print('User not found reject game')
+
+            await GameStatus.delete_game(game_id)
+        
+        elif game_details.status == 1:
+            # confirmed but queued so remove from queue and and clear game status
+            for accepted_player_id in game_details.confirmed_players:
+                try:
+                    await (await bot.get_dm_channel(accepted_player_id)).send(f'Game of {game_details.game} has been cancelled')
+                except:
+                    print('User not found cancel qued')
+
+            await GameStatus.delete_game(game_id)
+            await UserStatus.remove_game(game_id)
+        
+        
+        elif game_details.status == 2:
+            # game has started so remove from player status, clear game data and clear game status
 
 # ---------------------------------------------------------------------------- #
 
@@ -207,7 +259,7 @@ class GameConfirm(discord.ui.View):
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await GameAdmin.reject_game(self.game_id, interaction.user)
+        await GameAdmin.cancel_game(self.game_id)
 
         # Will delete interaction after 5 seconds
         if interaction.message:
