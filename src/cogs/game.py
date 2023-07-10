@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import ui
 from bot import Bot
 from game_handling import GameAdmin
+from data_wrappers import UserStatus, GameStatus
 
 class Game(commands.GroupCog, name="game"):
     def __init__(self) -> None:
@@ -17,7 +18,7 @@ class Game(commands.GroupCog, name="game"):
     ) -> None:
 
         try:
-            game_details = GameAdmin.get_game_details(game_name)
+            game_details = GameAdmin.get_game(game_name).details
 
             # Sends out UI to select players this is done to avoid the users
             # having to type out the names in inital interaction
@@ -35,6 +36,16 @@ class Game(commands.GroupCog, name="game"):
         except Exception as e:
             return await interaction.response.send_message(e)
 
+    @app_commands.command(name="reply")
+    async def reply(
+        self,
+        interaction: discord.Interaction
+    ):
+        if (game_id := await UserStatus.check_in_game(interaction.user.id)):
+            game_details = await GameStatus.get_game(game_id)
+            GameAdmin.get_game(game_details.game).reply(game_id, interaction)
+            
+            
 
 class GetPlayersClassInner(ui.View):
     """
@@ -61,7 +72,7 @@ class GetPlayersClassInner(ui.View):
         secondary_players = self.user_select.values
 
         # Double checks that the number of players is allowed. Just in case
-        if len(secondary_players) < self.user_select.min_values or len(secondary_players) > self.user_select.max_values:
+        if GameAdmin.check_game_details(self.game_name, len(secondary_players) + 1):
             self.stop()
             return await interaction.response.send_message(
                 content="Problem with number of player",

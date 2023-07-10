@@ -1,11 +1,11 @@
 import importlib
 import discord
 import os
-from data_wrappers import GameId, GameStatus, UserStatus
+from data_wrappers import GameId, GameStatus, UserStatus, GameData
 from bot import bot
 from typing import List, Mapping
 import redis.asyncio as redis
-from games.tests import GameInfo
+from games.utils import GameInfo
 from types import ModuleType
 from exceptions.game_exceptions import GameNotFound
 
@@ -100,7 +100,7 @@ class GameAdmin:
             embed=create_confirm_embed(
                 player_id,
                 game_state,
-                GameAdmin.get_game_details(game_state.game)
+                GameAdmin.get_game(game_state.game).details
             ),
             view=GameConfirm(game_id),
             delete_after=60*GameAdmin.timeout_minutes
@@ -129,16 +129,9 @@ class GameAdmin:
 
         game_details = await GameStatus.get_game(game_id)
 
-        flag = False
-
-        for player_id in game_details.confirmed_players:
-            if not (await UserState.join_game(player_id, game_id)):
-                flag = True
-
-        if flag:
+        if UserStatus.check_users_are_ready(game_details.confirmed_players):
             await GameStatus.set_game_queued(game_id)
         else:
-            await GameStatus.start_game(game_id)
             await GameAdmin.start_game(game_id)
             
         
@@ -164,7 +157,8 @@ class GameAdmin:
 
         game_module = GameAdmin.get_game(game_details.game)
         
-        game_module.start_game(game_id)
+        await GameStatus.set_game_in_progress(game_id)
+        await game_module.start_game(game_id)
 
     @staticmethod
     def game_end():
@@ -184,7 +178,7 @@ class GameAdmin:
             # Notifies players that have accepted the game that it has been cancelled
             for accepted_player_id in game_details.confirmed_players:
                 try:
-                    await (await bot.get_dm_channel(accepted_player_id)).send(f'{rejecting_player.name} declined the game of {game_details.game}')
+                    await (await bot.get_dm_channel(accepted_player_id)).send(f'A player declined the game of {game_details.game}')
                 except:
                     print('User not found reject game')
 
@@ -199,12 +193,22 @@ class GameAdmin:
                     print('User not found cancel qued')
 
             await GameStatus.delete_game(game_id)
-            await UserStatus.remove_game(game_id)
+            await UserStatus.clear_game(game_id, game_details.confirmed_players + game_details.unconfirmed_players)
         
         
         elif game_details.status == 2:
             # game has started so remove from player status, clear game data and clear game status
-
+            for accepted_player_id in game_details.confirmed_players:
+                try:
+                    await (await bot.get_dm_channel(accepted_player_id)).send(f'Game of {game_details.game} has been cancelled')
+                except:
+                    print('User not found cancel qued')
+            
+            await GameStatus.delete_game(game_id)
+            await UserStatus.clear_game(game_id, game_details.confirmed_players + game_details.unconfirmed_players)
+            await GameData.delete_game(game_id)
+    
+    
 # ---------------------------------------------------------------------------- #
 
 def create_confirm_embed(player_id: int, game_state: GameStatus.GameState, game_details: GameInfo) -> discord.Embed:

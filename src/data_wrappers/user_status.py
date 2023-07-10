@@ -1,11 +1,8 @@
-import redis
 import redis.asyncio as redis_sync
 from dataclasses import dataclass, asdict
 from typing import List
-from . import GameStatus
-import discord
+from . import GameId
 from helpers import watch_helper
-from typing import Type
 from exceptions.general_exceptions import PlayerNotFound
 
 class UserStatus:
@@ -24,8 +21,8 @@ class UserStatus:
     
     @dataclass
     class UserState:
-        current_game: str
-        queued_games: List[str]
+        current_game: GameId
+        queued_games: List[GameId]
 
     @staticmethod
     async def get_status(user_id: UserId) -> UserState | None:
@@ -33,18 +30,17 @@ class UserStatus:
             return UserStatus.UserState(**current_status)
 
     @staticmethod
-    async def check_in_game(user_id: UserId) -> bool:
+    async def check_in_game(user_id: UserId) -> None | GameId:
         current_status = await UserStatus.get_status(user_id)
         
         if current_status:
-            return True
-        return False
+            return current_status.current_game
     
     @staticmethod
     @watch_helper(__pool, "user_id")
     async def join_game(
         user_id: UserId,
-        game_id: GameStatus.GameId,
+        game_id: GameId,
         pipe: redis_sync.client.Pipeline = None # type: ignore
     ):
         if await pipe.json().get(user_id):
@@ -56,20 +52,43 @@ class UserStatus:
             )))
     
     @staticmethod
-    async def check_if_in_game(user_ids: List[UserId], game_id: GameStatus.GameId):
-        while len(user_ids):
-            user_id = user_ids.pop()
-            if status := await UserStatus.get_status(user_id):
-                if status.current_game != game_id:
+    async def check_users_are_ready(user_ids: List[UserId]) -> bool:
+        for user_id in user_ids:
+            user_status = await UserStatus.get_status(user_id) 
+            if user_status:
+                if user_status.current_game:
                     return False
             else:
                 raise PlayerNotFound(user_id)
         return True
 
     @staticmethod
-    async def game_finished(user_id: UserId, game_id: GameStatus.GameId):
-        pass
-    
+    async def clear_game(
+        game_id: GameId,
+        user_id: List[UserId],
+    ):
+        for user in user_id:
+            await UserStatus.remove_game(game_id, user)
+
     @staticmethod
-    async def qued_game_canceled(user_id: UserId, game_id: GameStatus.GameId):
-        pass
+    @watch_helper(__pool, "user_id")
+    async def remove_game(
+        game_id: GameId,
+        user_id: UserId,
+        pipe: redis_sync.client.Pipeline = None # type: ignore
+    ):
+        if current_status := await pipe.json().get(user_id):
+            if current_status.current_game == game_id:
+                await pipe.json().set(
+                    user_id,
+                    '.current_game',
+                    await pipe.json().arrpop(
+                        str(user_id),
+                        '.queued_games',
+                        0
+                    )
+                )
+            else:
+                await pipe.json().arrrem(str(user_id), '.queued_games', game_id)
+        else:
+            raise PlayerNotFound(user_id)

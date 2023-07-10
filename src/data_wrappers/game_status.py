@@ -79,3 +79,11 @@ class GameStatus:
 
         else:
             raise PlayerNotFound(player_id)
+
+    @staticmethod
+    async def set_game_queued(game_id: GameId):
+        await GameStatus.__pool.json().set(game_id, '.status', 1)
+    
+    @staticmethod
+    async def set_game_in_progress(game_id: GameId):
+        await GameStatus.__pool.json().set(game_id, '.status', 2)
