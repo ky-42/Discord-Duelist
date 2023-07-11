@@ -1,9 +1,9 @@
 import pytest
 import redis
 from datetime import timedelta
-import redis.asyncio as redis_sync
 from dataclasses import asdict
 from . import GameStatus
+import asyncio
 
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import PlayerNotFound
@@ -17,13 +17,10 @@ test_state = GameStatus.GameState(
         "1": "player_one",
         "2": "player_two"
     },
-    ready_players=[],
-    queued_players=[],
     confirmed_players=[1],
     unconfirmed_players=[2]
 )
 
-import asyncio
 
 db_number = GameStatus._GameStatus__db_number # type: ignore
 
@@ -52,7 +49,6 @@ class TestGetGame:
         
         assert got_data == test_state
         
-
     async def test_unsuccessful_get(self):
         test_game_id = GameStatus.create_game_id()
         
@@ -125,3 +121,24 @@ class TestGetGame:
         
         with pytest.raises(ActiveGameNotFound):
             await GameStatus.player_confirm(game_id="test", player_id=2)
+    
+    async def test_set_game_queued(self):
+        test_game_id = GameStatus.create_game_id()
+        self.conn.json().set(test_game_id, '.', asdict(test_state))
+        
+        await GameStatus.set_game_queued(game_id=test_game_id)
+        
+        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
+        
+        assert new_state.status == 1
+
+    async def test_set_game_in_progress(self):
+        test_game_id = GameStatus.create_game_id()
+        self.conn.json().set(test_game_id, '.', asdict(test_state))
+        
+        await GameStatus.set_game_queued(game_id=test_game_id)
+        await GameStatus.set_game_in_progress(game_id=test_game_id)
+        
+        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
+        
+        assert new_state.status == 2

@@ -1,9 +1,10 @@
 import redis.asyncio as redis_sync
 from dataclasses import dataclass, asdict
 from typing import List
-from . import GameId
-from helpers import watch_helper
+from .types import GameId
+from .helpers import watch_helper
 from exceptions.general_exceptions import PlayerNotFound
+from exceptions.game_exceptions import ActiveGameNotFound
 
 class UserStatus:
     
@@ -21,7 +22,7 @@ class UserStatus:
     
     @dataclass
     class UserState:
-        current_game: GameId
+        current_game: GameId | None
         queued_games: List[GameId]
 
     @staticmethod
@@ -52,14 +53,12 @@ class UserStatus:
             )))
     
     @staticmethod
-    async def check_users_are_ready(user_ids: List[UserId]) -> bool:
+    async def check_users_are_ready(game_id: GameId, user_ids: List[UserId]) -> bool:
         for user_id in user_ids:
             user_status = await UserStatus.get_status(user_id) 
             if user_status:
-                if user_status.current_game:
+                if user_status.current_game != game_id and user_status.current_game != None:
                     return False
-            else:
-                raise PlayerNotFound(user_id)
         return True
 
     @staticmethod
@@ -78,17 +77,24 @@ class UserStatus:
         pipe: redis_sync.client.Pipeline = None # type: ignore
     ):
         if current_status := await pipe.json().get(user_id):
+            current_status = UserStatus.UserState(**current_status)
             if current_status.current_game == game_id:
-                await pipe.json().set(
-                    user_id,
-                    '.current_game',
-                    await pipe.json().arrpop(
-                        str(user_id),
-                        '.queued_games',
-                        0
+                if len(current_status.queued_games) > 0:
+                    await pipe.json().set(
+                        user_id,
+                        '.current_game',
+                        await pipe.json().arrpop(
+                            str(user_id),
+                            '.queued_games',
+                            0
+                        )
                     )
-                )
+                else:
+                    await pipe.json().delete(user_id)
             else:
-                await pipe.json().arrrem(str(user_id), '.queued_games', game_id)
+                if (index := await pipe.json().arrindex(str(user_id), '.queued_games', game_id)) > -1:
+                    await pipe.json().arrpop(str(user_id), '.queued_games', index)
+                else:
+                    raise ActiveGameNotFound(game_id)
         else:
             raise PlayerNotFound(user_id)

@@ -1,7 +1,8 @@
 import importlib
 import discord
 import os
-from data_wrappers import GameId, GameStatus, UserStatus, GameData
+from data_wrappers import GameStatus, UserStatus, GameData
+from data_wrappers.types import GameId
 from bot import bot
 from typing import List, Mapping
 import redis.asyncio as redis
@@ -129,7 +130,9 @@ class GameAdmin:
 
         game_details = await GameStatus.get_game(game_id)
 
-        if UserStatus.check_users_are_ready(game_details.confirmed_players):
+        if UserStatus.check_users_are_ready(game_id, game_details.confirmed_players):
+            for player_id in game_details.confirmed_players:
+                await UserStatus.join_game(player_id, game_id)
             await GameStatus.set_game_queued(game_id)
         else:
             await GameAdmin.start_game(game_id)
