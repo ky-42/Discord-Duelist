@@ -2,7 +2,7 @@ import importlib
 import discord
 import os
 from data_wrappers import GameStatus, UserStatus, GameData
-from data_wrappers.types import GameId
+from data_types import GameId
 from bot import bot
 from typing import List, Mapping
 import redis.asyncio as redis
@@ -11,8 +11,6 @@ from types import ModuleType
 from exceptions.game_exceptions import GameNotFound
 
 class GameAdmin:
-    timeout_minutes = 15
-
     # Stores the loaded game moduels
     loaded_games: dict[str, None | ModuleType] = {
         game_name: None for game_name in os.listdir("./games")
@@ -78,7 +76,7 @@ class GameAdmin:
         await GameStatus.add_game(
             game_id,
             game_details,
-            GameAdmin.timeout_minutes
+            bot.game_requested_expiery
         )
 
         # Sends out confirmations to secondary players
@@ -104,7 +102,7 @@ class GameAdmin:
                 GameAdmin.get_game(game_state.game).details
             ),
             view=GameConfirm(game_id),
-            delete_after=60*GameAdmin.timeout_minutes
+            delete_after=bot.game_requested_expiery
         )
 
     # ---------------------------------------------------------------------------- #
@@ -120,6 +118,12 @@ class GameAdmin:
     async def reject_game(game_id: GameId, rejecting_player: discord.User | discord.Member):
         game_details = await GameStatus.get_game(game_id)
 
+        for player_id in game_details.confirmed_players:
+            await bot.get_user(int(player_id)).send(
+                f'{rejecting_player.name} has rejected the game of {game_details.game} the you accepted'
+            )
+        
+        await GameAdmin.cancel_game(game_id)
 
     # ---------------------------------------------------------------------------- #
 
@@ -130,14 +134,14 @@ class GameAdmin:
 
         game_details = await GameStatus.get_game(game_id)
 
+        for player_id in game_details.confirmed_players:
+            await UserStatus.join_game(player_id, game_id)
+
         if UserStatus.check_users_are_ready(game_id, game_details.confirmed_players):
-            for player_id in game_details.confirmed_players:
-                await UserStatus.join_game(player_id, game_id)
             await GameStatus.set_game_queued(game_id)
         else:
             await GameAdmin.start_game(game_id)
             
-        
 
     @staticmethod
     async def start_game(game_id: GameId):
@@ -163,11 +167,17 @@ class GameAdmin:
         await GameStatus.set_game_in_progress(game_id)
         await game_module.start_game(game_id)
 
+
     @staticmethod
-    def game_end():
+    async def game_end(game_id: GameId, winner: int):
         # TODO update player status and call check game status to see if game needs to
         # next queued game to see if all players are ready now
-        pass
+
+        # This needs to be done first before the game is deleted
+        game_details = await GameStatus.get_game(game_id)
+        
+        await GameAdmin.cancel_game(game_id)
+
 
     @staticmethod
     async def cancel_game(game_id: GameId):
@@ -209,7 +219,7 @@ class GameAdmin:
             
             await GameStatus.delete_game(game_id)
             await UserStatus.clear_game(game_id, game_details.confirmed_players + game_details.unconfirmed_players)
-            await GameData.delete_game(game_id)
+            await GameData.delete_data(game_id)
     
     
 # ---------------------------------------------------------------------------- #

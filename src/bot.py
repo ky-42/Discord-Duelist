@@ -20,7 +20,12 @@ class Bot(commands.Bot):
     Custom Bot class is needed to add cogs and overide methods
     """
 
+    def __init__(self, *args, **kwargs):
+        self.game_requested_expiery = 15*60 # 15 minutes
+        self.game_no_move_expiery = 48*60*60 # 2 days
+
     async def setup_hook(self: commands.Bot):
+
         # Loads all cogs
         await self.load_extension("cogs.game")
         await self.load_extension("cogs.tournament")

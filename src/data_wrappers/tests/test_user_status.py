@@ -24,7 +24,7 @@ test_state_queued_game_first_id = UserStatus.UserState(
 
 db_number = UserStatus._UserStatus__db_number # type: ignore
 
-class TestGetGame:
+class TestUserStatus:
     conn = redis.Redis(db=db_number)
     pytestmark = pytest.mark.asyncio
     
@@ -35,7 +35,7 @@ class TestGetGame:
         yield
         
         # After tests in this class clears db
-        TestGetGame.conn.flushdb()
+        TestUserStatus.conn.flushdb()
     
     async def test_get_status_existing_user(self):
         """

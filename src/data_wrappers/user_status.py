@@ -1,7 +1,7 @@
 import redis.asyncio as redis_sync
 from dataclasses import dataclass, asdict
 from typing import List
-from .types import GameId
+from ..data_types import GameId
 from .helpers import watch_helper
 from exceptions.general_exceptions import PlayerNotFound
 from exceptions.game_exceptions import ActiveGameNotFound
@@ -22,7 +22,7 @@ class UserStatus:
     
     @dataclass
     class UserState:
-        current_game: GameId | None
+        current_game: GameId
         queued_games: List[GameId]
 
     @staticmethod

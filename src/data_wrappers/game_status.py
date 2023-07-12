@@ -7,7 +7,7 @@ from dataclasses import dataclass, asdict
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import PlayerNotFound
 from .helpers import pipeline_watch
-from .types import GameId
+from ..data_types import GameId
 
 class GameStatus:
     """

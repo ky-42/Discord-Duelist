@@ -4,7 +4,7 @@ import discord
 from dataclasses import dataclass
 from ..utils import GameInfo, Game, load_game_data, load_game_state
 from data_wrappers import GameStatus, GameData, UserStatus, GameId
-from game_handling import GameAdmin
+from games.game_handling import GameAdmin
 from typing import List, Mapping
 
 details = GameInfo(
@@ -84,13 +84,15 @@ class TicTacToe(Game):
         game_state: GameStatus.GameState,
         game_data: GameDataaaa
     ):
+        winning_user = await bot.get_user(game_data.player_order[winner])
+
         for player in game_state.confirmed_players:
             if winner > 0:
-                await bot.get_user(player).send(f'Game of Tic-Tac-Toe is over! The winner is {game_data.player_order[winner]}!')
+                await bot.get_user(player).send(f'Game of Tic-Tac-Toe is over! The winner is {winning_user.name}!')
             else:
                 await bot.get_user(player).send('Game of Tic-Tac-Toe is over! Its a tie!')
         
-        await GameAdmin.cancel_game(game_id)
+        await GameAdmin.game_end(game_id, winner)
 
     @staticmethod
     def check_win(board: List[List[int]]) -> int:

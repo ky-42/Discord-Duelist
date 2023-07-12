@@ -24,7 +24,7 @@ test_state = GameStatus.GameState(
 
 db_number = GameStatus._GameStatus__db_number # type: ignore
 
-class TestGetGame:
+class TestGameStatus:
     conn = redis.Redis(db=db_number)
     pytestmark = pytest.mark.asyncio
     
@@ -34,7 +34,7 @@ class TestGetGame:
         yield
         
         # After tests in this class clears db
-        TestGetGame.conn.flushdb()
+        TestGameStatus.conn.flushdb()
 
     async def test_successful_get(self):
         """

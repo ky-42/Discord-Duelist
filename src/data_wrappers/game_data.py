@@ -1,11 +1,7 @@
 import redis.asyncio as redis
-from .types import GameId
+from ..data_types import GameId
 from dataclasses import asdict
 from exceptions.game_exceptions import ActiveGameNotFound
-from typing import TypeVar, Generic
-
-T = TypeVar('T')
-
 
 class GameData:
     """
@@ -28,3 +24,7 @@ class GameData:
     async def store_data(game_id: GameId, data):
         # TODO: add timeout
         await GameData.__pool.json().set(game_id, '.', asdict(data))
+    
+    @staticmethod
+    async def delete_data(game_id: GameId):
+        await GameData.__pool.delete(game_id)

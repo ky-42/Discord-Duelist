@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord import ui
 from bot import Bot
-from game_handling import GameAdmin
+from games.game_handling import GameAdmin
 from data_wrappers import UserStatus, GameStatus
 
 class Game(commands.GroupCog, name="game"):
@@ -41,10 +41,17 @@ class Game(commands.GroupCog, name="game"):
         self,
         interaction: discord.Interaction
     ):
+        """
+        When ran this will check if the user is in a game and if they are check if it is their turn
+        and if it is send them the game UI
+        """
         if (game_id := await UserStatus.check_in_game(interaction.user.id)):
             game_details = await GameStatus.get_game(game_id)
             GameAdmin.get_game(game_details.game).reply(game_id, interaction)
             
+    # @app_commands.command(name="quit")
+    # async def quit(self, interaction: discord.Interaction) -> None:
+    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
             
 
 class GetPlayersClassInner(ui.View):
@@ -110,9 +117,6 @@ class GetPlayersClassInner(ui.View):
     # async def status(self, interaction: discord.Interaction) -> None:
     #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
-    # @app_commands.command(name="quit")
-    # async def quit(self, interaction: discord.Interaction) -> None:
-    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
 
 async def setup(bot: Bot) -> None:
