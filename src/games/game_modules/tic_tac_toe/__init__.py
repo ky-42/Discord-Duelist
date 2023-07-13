@@ -2,10 +2,11 @@ import os
 from bot import bot
 import discord
 from dataclasses import dataclass
-from ..utils import GameInfo, Game, load_game_data, load_game_state
-from data_wrappers import GameStatus, GameData, UserStatus, GameId
+from games.utils import GameInfo, Game, load_game_data, load_game_state
+from data_wrappers import GameStatus, GameData
 from games.game_handling import GameAdmin
 from typing import List, Mapping
+from data_types import GameId
 
 details = GameInfo(
     min_players=2,
@@ -36,6 +37,7 @@ class TicTacToe(Game):
 
         await GameData.store_data(game_id, new_game_state)
 
+        print('hi')
         await bot.get_user(new_game_state.current_player).send('Its your turn! Use the /reply command to play your move!')
 
 

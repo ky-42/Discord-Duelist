@@ -65,8 +65,8 @@ class GetPlayersClassInner(ui.View):
 
         self.user_select = ui.UserSelect(
             placeholder="Select a user please!",
-            min_values=min,
-            max_values=max,
+            min_values=min-1,
+            max_values=max-1,
             row=0,
             custom_id="user-select"
         )
@@ -82,7 +82,7 @@ class GetPlayersClassInner(ui.View):
         if GameAdmin.check_game_details(self.game_name, len(secondary_players) + 1):
             self.stop()
             return await interaction.response.send_message(
-                content="Problem with number of player",
+                content="Problem with request",
                 ephemeral=True
             )
         else:

@@ -6,8 +6,8 @@ from typing import List, Mapping
 from dataclasses import dataclass, asdict
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import PlayerNotFound
+from data_types import GameId
 from .helpers import pipeline_watch
-from ..data_types import GameId
 
 class GameStatus:
     """
@@ -66,6 +66,11 @@ class GameStatus:
         player_id: int,
         pipe: redis_sync.client.Pipeline = None # type: ignore
     ) -> List[int]:
+        """
+        Adds a player to the confirmed list and removes them from the unconfirmed list
+        Returns unconfirmed list
+        """
+
         # Make sure player exists
         if ((index := await pipe.json().arrindex(game_id, '.unconfirmed_players', player_id)) > -1):
             # Switch to buffered mode after watch

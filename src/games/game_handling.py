@@ -13,12 +13,10 @@ from exceptions.game_exceptions import GameNotFound
 class GameAdmin:
     # Stores the loaded game moduels
     loaded_games: dict[str, None | ModuleType] = {
-        game_name: None for game_name in os.listdir("./games")
+        game_name: None for game_name in os.listdir("./games/game_modules")
     }
 
     # ---------------------------------------------------------------------------- #
-
-
 
     @staticmethod
     def check_game_details(game_name: str, player_count: int) -> None:
@@ -43,7 +41,9 @@ class GameAdmin:
     # Not to be called externally and only if the game isnt loaded already
     @staticmethod
     def __load_game(game_name: str) -> ModuleType:
-        game = importlib.import_module(f"games.{game_name}")
+        # Watch out any errors initalizing this are caught by the caller
+        # so you won't see module errors
+        game = importlib.import_module(f"games.game_modules.{game_name}")
         GameAdmin.loaded_games[game_name] = game
         return game
 
@@ -109,9 +109,12 @@ class GameAdmin:
 
     @staticmethod
     async def player_confirm(player_id: int, game_id: GameId):
+        #TODO maybe redo this part
+        print('player confirm')
         unconfirmed_list = await GameStatus.player_confirm(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
+            print('player confirm')
             await GameAdmin.game_confirmed(game_id)
 
     @staticmethod
@@ -132,40 +135,49 @@ class GameAdmin:
         # TODO add to game status expire timer
         # TODO check if game needs to be qued
 
+        print(1)
+        
         game_details = await GameStatus.get_game(game_id)
+
 
         for player_id in game_details.confirmed_players:
             await UserStatus.join_game(player_id, game_id)
 
-        if UserStatus.check_users_are_ready(game_id, game_details.confirmed_players):
-            await GameStatus.set_game_queued(game_id)
-        else:
-            await GameAdmin.start_game(game_id)
+        print(2)
+
+        await GameAdmin.start_game(game_id)
             
 
     @staticmethod
     async def start_game(game_id: GameId):
         game_details = await GameStatus.get_game(game_id)
 
+        if await UserStatus.check_users_are_ready(game_id, game_details.confirmed_players):
 
-        for player_id in game_details.confirmed_players:
-            a = list(game_details.player_names.values())
+            for player_id in game_details.confirmed_players:
+                # a = list(game_details.player_names.values())
 
-            a.remove(game_details.player_names[str(game_details.starting_player)])
-            a.remove(game_details.player_names[str(player_id)])
+                # if player_id != game_details.starting_player:
+                #     a.remove(game_details.player_names[str(game_details.starting_player)])
+                # a.remove(game_details.player_names[str(player_id)])
 
-            b = ', '.join(a[:-1]) + ' and ' + a[-1]
+                # b = ', '.join(a[:-1]) + ' and ' + a[-1]
 
-            c = f'Game of {game_details.game} with {b} is starting!'
+                c = f'Game of {game_details.game} is starting!'
 
-            await bot.get_user(int(player_id)).send(
-                c
-            )
+                await (await bot.get_user(int(player_id))).send(
+                    c
+                )
 
-        game_module = GameAdmin.get_game(game_details.game)
-        
-        await GameStatus.set_game_in_progress(game_id)
-        await game_module.start_game(game_id)
+            game_module = GameAdmin.get_game(game_details.game)
+            
+            print(3)
+            await GameStatus.set_game_in_progress(game_id)
+            await game_module.start_game(game_id)
+
+        else:
+            print(4)
+            await GameStatus.set_game_queued(game_id)
 
 
     @staticmethod
@@ -176,8 +188,15 @@ class GameAdmin:
         # This needs to be done first before the game is deleted
         game_details = await GameStatus.get_game(game_id)
         
-        await GameAdmin.cancel_game(game_id)
+        # Checks if after players were removed from the game if they are in another game that can start
+        await UserStatus.clear_game(game_id, game_details.confirmed_players)
+        for player_id in game_details.confirmed_players:
+            if (user_new_game_id := await UserStatus.check_in_game(player_id)) != None:
+                await GameAdmin.start_game(user_new_game_id)
 
+                
+        await GameStatus.delete_game(game_id)
+        await GameData.delete_data(game_id)
 
     @staticmethod
     async def cancel_game(game_id: GameId):
@@ -266,13 +285,14 @@ class GameConfirm(discord.ui.View):
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
+        # Will delete interaction after 5 seconds
+        # if interaction.message:
+        #     await interaction.message.edit(delete_after=5)
+
+        await interaction.response.send_message('Game accepted!')
+
         await GameAdmin.player_confirm(interaction.user.id, self.game_id)
 
-        # Will delete interaction after 5 seconds
-        if interaction.message:
-            await interaction.message.edit(delete_after=5)
-
-        await interaction.response.send_message('Game accepted!', delete_after=5)
 
     @discord.ui.button(label='Reject', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):

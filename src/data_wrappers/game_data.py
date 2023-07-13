@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from ..data_types import GameId
+from data_types import GameId
 from dataclasses import asdict
 from exceptions.game_exceptions import ActiveGameNotFound
 

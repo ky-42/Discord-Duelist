@@ -21,6 +21,7 @@ class Bot(commands.Bot):
     """
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.game_requested_expiery = 15*60 # 15 minutes
         self.game_no_move_expiery = 48*60*60 # 2 days
 

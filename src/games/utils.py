@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from exceptions.game_exceptions import ToManyPlayers, NotEnoughPlayers
 import functools
 import inspect
-from data_wrappers import GameStatus, GameData, UserStatus, GameId
+from data_wrappers import GameStatus, GameData, UserStatus
+from data_types import GameId
 
 @dataclass
 class GameInfo:
