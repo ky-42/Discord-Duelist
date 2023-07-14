@@ -47,7 +47,7 @@ class Game(commands.GroupCog, name="game"):
         """
         if (game_id := await UserStatus.check_in_game(interaction.user.id)):
             game_details = await GameStatus.get_game(game_id)
-            GameAdmin.get_game(game_details.game).reply(game_id, interaction)
+            await GameAdmin.get_game(game_details.game).reply(game_id, interaction)
             
     # @app_commands.command(name="quit")
     # async def quit(self, interaction: discord.Interaction) -> None:

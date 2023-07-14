@@ -21,10 +21,11 @@ class GameInfo:
 def load_game_state(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
+        print(inspect.getcallargs(func, *args, **kwargs))
         if "game_id" in (args_dict := inspect.getcallargs(func, *args, **kwargs)):
             game_id = args_dict["game_id"]
             game_state = await GameStatus.get_game(game_id)
-            return func(*args, **kwargs, game_state=game_state)
+            return await func(*args, **kwargs, game_state=game_state)
         else:
             raise TypeError("Missing required parameter: game_id")
     return wrapper
@@ -33,10 +34,11 @@ def load_game_data(data_class):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            print(inspect.getcallargs(func, *args, **kwargs))
             if "game_id" in (args_dict := inspect.getcallargs(func, *args, **kwargs)):
                 game_id = args_dict["game_id"]
                 game_data = await GameData.retrive_data(game_id, data_class)
-                return func(*args, **kwargs, game_data=game_data)
+                return await func(*args, **kwargs, game_data=game_data)
             else:
                 raise TypeError("Missing required parameter: game_id")
         return wrapper

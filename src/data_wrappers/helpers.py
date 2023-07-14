@@ -11,6 +11,7 @@ def pipeline_watch(redis_pool: redis_sync.Redis, watch_param_name: str, value_no
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             if watch_param_name in (args_dict := inspect.getcallargs(func, *args, **kwargs)):
+                print(args_dict)
                 watch_data = args_dict[watch_param_name]
                 async with redis_pool.pipeline() as pipe:
                     await pipe.watch(watch_data)
