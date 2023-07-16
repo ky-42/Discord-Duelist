@@ -42,8 +42,8 @@ async def start_game(
 
 
 @staticmethod
-@load_game_data(GameDataaaa)
 @load_game_state
+@load_game_data(GameDataaaa)
 async def reply(
     game_id: GameId,
     interaction: discord.Interaction,
@@ -59,7 +59,7 @@ async def reply(
 
 @staticmethod
 @load_game_state
-@load_game_data
+@load_game_data(GameDataaaa)
 async def play_move(
     game_id: GameId, 
     row: int,
@@ -69,13 +69,13 @@ async def play_move(
     game_data = any # type: ignore
 ):
     if game_data.current_player == interaction.user.id:
-        game_data.current_board[row][column] = game_data.player_square_type[game_data.current_player]
+        game_data.current_board[row][column] = game_data.player_square_type[str(game_data.current_player)]
         if (winner := check_win(game_data.current_board)) != 0:
             await end_game(game_id, winner, game_state, game_data)
         else:
             game_data.current_player = game_data.player_order[0] if game_data.current_player == game_data.player_order[1] else game_data.player_order[1]
             await GameData.store_data(game_id, game_data)
-            await bot.get_user(game_data.current_player).send('Its your turn! Use the /reply command to play your move!')
+            await (await bot.get_user(game_data.current_player)).send('Its your turn! Use the /reply command to play your move!')
 
 
 @staticmethod
@@ -89,9 +89,9 @@ async def end_game(
 
     for player in game_state.confirmed_players:
         if winner > 0:
-            await bot.get_user(player).send(f'Game of Tic-Tac-Toe is over! The winner is {winning_user.name}!')
+            await (await bot.get_user(player)).send(f'Game of Tic-Tac-Toe is over! The winner is {winning_user.name}!')
         else:
-            await bot.get_user(player).send('Game of Tic-Tac-Toe is over! Its a tie!')
+            await (await bot.get_user(player)).send('Game of Tic-Tac-Toe is over! Its a tie!')
     
     await GameAdmin.game_end(game_id, winner)
 
@@ -136,7 +136,7 @@ class TicTacToeButton(discord.ui.Button):
     
     async def callback(self, interaction: discord.Interaction):
         assert self.view is not None
-        self.view.pressed(self.row, self.column, interaction)
+        await self.view.pressed(self.row, self.column, interaction)
 
 
 class TicTacToeView(discord.ui.View):
