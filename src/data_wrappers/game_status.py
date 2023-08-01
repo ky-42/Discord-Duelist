@@ -1,13 +1,16 @@
 import redis.asyncio as redis_sync
 import random
 import string
+import inspect
+import functools
+from bot import bot
 from datetime import timedelta
 from typing import List, Mapping
 from dataclasses import dataclass, asdict
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import PlayerNotFound
 from data_types import GameId
-from .helpers import pipeline_watch
+from ._helpers import pipeline_watch
 
 class GameStatus:
     """
@@ -40,19 +43,34 @@ class GameStatus:
         ))
 
     @staticmethod
-    async def get_game(game_id: GameId) -> GameState:
-        if (game_state := await GameStatus.__pool.json().get(game_id)):
-            return GameStatus.GameState(**game_state)
-        raise ActiveGameNotFound
+    def extend_game(extend_time: timedelta):
+        def extend_game(func):
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                func_sig = inspect.signature(func)
+                func_params = func_sig.bind(*args, **kwargs)
+
+                if "game_id" in (args_dict := func_params.arguments):
+                    game_id = args_dict["game_id"]
+                    await GameStatus.__pool.expire(game_id, extend_time)
+                    return await func(*args, **kwargs)
+
+            return wrapper
+        return extend_game
+
 
     @staticmethod
     async def add_game(game_id: GameId, state: GameState, timeout_minutes: float):
         await GameStatus.__pool.json().set(game_id, '.', asdict(state))
         await GameStatus.__pool.expire(game_id, timedelta(minutes=timeout_minutes))
-        
+
+
     @staticmethod
-    async def extend_game(game_id: GameId, timeout_minutes: float):
-        await GameStatus.__pool.expire(game_id, timedelta(minutes=timeout_minutes))
+    async def get_game(game_id: GameId) -> GameState:
+        if (game_state := await GameStatus.__pool.json().get(game_id)):
+            return GameStatus.GameState(**game_state)
+        raise ActiveGameNotFound
+        
 
     @staticmethod
     async def delete_game(game_id: GameId):
@@ -92,3 +110,4 @@ class GameStatus:
     @staticmethod
     async def set_game_in_progress(game_id: GameId):
         await GameStatus.__pool.json().set(game_id, '.status', 2)
+    

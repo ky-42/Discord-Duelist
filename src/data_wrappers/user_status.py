@@ -2,7 +2,7 @@ import redis.asyncio as redis_sync
 from dataclasses import dataclass, asdict
 from typing import List
 from data_types import GameId
-from .helpers import watch_helper
+from ._helpers import watch_helper
 from exceptions.general_exceptions import PlayerNotFound
 from exceptions.game_exceptions import ActiveGameNotFound
 

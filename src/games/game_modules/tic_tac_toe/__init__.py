@@ -2,7 +2,7 @@ import os
 from bot import bot
 import discord
 from dataclasses import dataclass
-from games.game_modules.utils import GameInfo, Game, load_game_data, load_game_state
+from games.utils import GameInfo, Game, load_game_data, load_game_state
 from data_wrappers import GameStatus, GameData
 from games.game_handling import GameAdmin
 from typing import List, Mapping

@@ -3,7 +3,8 @@ from discord import app_commands
 from discord.ext import commands
 from discord import ui
 from bot import Bot
-from games.game_handling import GameAdmin
+from games.game_handling.game_admin import GameAdmin
+from games.game_handling.game_loading import GameLoading
 from data_wrappers import UserStatus, GameStatus
 
 class Game(commands.GroupCog, name="game"):
@@ -18,7 +19,7 @@ class Game(commands.GroupCog, name="game"):
     ) -> None:
 
         try:
-            game_details = GameAdmin.get_game(game_name).details
+            game_details = GameLoading.get_game(game_name).details
 
             # Sends out UI to select players this is done to avoid the users
             # having to type out the names in inital interaction
@@ -47,7 +48,7 @@ class Game(commands.GroupCog, name="game"):
         """
         if (game_id := await UserStatus.check_in_game(interaction.user.id)):
             game_details = await GameStatus.get_game(game_id)
-            await GameAdmin.get_game(game_details.game).reply(game_id, interaction)
+            await GameLoading.get_game(game_details.game).reply(game_id, interaction)
             
     # @app_commands.command(name="quit")
     # async def quit(self, interaction: discord.Interaction) -> None:
@@ -72,6 +73,10 @@ class GetPlayersClassInner(ui.View):
         )
 
         self.add_item(self.user_select)
+        self.user_select.callback = self.user_select_callback
+
+    async def user_select_callback(self, _interaction: discord.Interaction):
+        pass
 
     @ui.button(label="Confirm Players", style=discord.ButtonStyle.green, row=1)
     async def confirm(self, interaction: discord.Interaction, _: ui.Button):
@@ -79,7 +84,7 @@ class GetPlayersClassInner(ui.View):
         secondary_players = self.user_select.values
 
         # Double checks that the number of players is allowed. Just in case
-        if GameAdmin.check_game_details(self.game_name, len(secondary_players) + 1):
+        if GameLoading.check_game_details(self.game_name, len(secondary_players) + 1):
             self.stop()
             return await interaction.response.send_message(
                 content="Problem with request",

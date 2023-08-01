@@ -21,32 +21,35 @@ class GameInfo:
 def load_game_state(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
+
         func_sig = inspect.signature(func)
         func_params = func_sig.bind(*args, **kwargs)
-        print(args)
+
         if "game_id" in (args_dict := func_params.arguments):
             game_id = args_dict["game_id"]
             game_state = await GameStatus.get_game(game_id)
             return await func(*args, **kwargs, game_state=game_state)
         else:
             raise TypeError("Missing required parameter: game_id")
+
     return wrapper
 
-def load_game_data(data_class):
-    def decorator(func):
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            a = inspect.signature(func)
-            andas = a.bind(*args, **kwargs)
-            print(args)
-            if "game_id" in (args_dict := andas.arguments):
-                game_id = args_dict["game_id"]
-                game_data = await GameData.retrive_data(game_id, data_class)
-                return await func(*args, **kwargs, game_data=game_data)
-            else:
-                raise TypeError("Missing required parameter: game_id")
-        return wrapper
-    return decorator
+def load_game_data(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+
+        func_sig = inspect.signature(func)
+        func_params = func_sig.bind(*args, **kwargs)
+        data_type = func.__annotations__["game_data"]
+
+        if "game_id" in (args_dict := func_params.arguments):
+            game_id = args_dict["game_id"]
+            game_data = await GameData.retrive_data(game_id, data_type)
+            return await func(*args, **kwargs, game_data=game_data)
+        else:
+            raise TypeError("Missing required parameter: game_id")
+
+    return wrapper
         
 class Game:
     @staticmethod
