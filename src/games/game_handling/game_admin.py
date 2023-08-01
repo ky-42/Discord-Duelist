@@ -34,7 +34,7 @@ class GameAdmin:
         await GameStatus.add_game(
             game_id,
             game_details,
-            bot.game_requested_expiery
+            bot.game_requested_expiry
         )
 
         # Sends out confirmations to secondary players
@@ -147,7 +147,7 @@ class GameAdmin:
                 GameLoading.get_game(game_state.game).details
             ),
             view=GameConfirm(game_id, GameAdmin.player_confirm, GameAdmin.cancel_game),
-            delete_after=bot.game_requested_expiery
+            delete_after=bot.game_requested_expiry
         )
 
     @staticmethod

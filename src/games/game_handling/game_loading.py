@@ -6,7 +6,7 @@ from exceptions.game_exceptions import GameNotFound
 class GameLoading:
     # Stores the loaded game moduels
     loaded_games: dict[str, None | ModuleType] = {
-        game_name: None for game_name in os.listdir("./games/game_modules")
+        game_name: None for game_name in os.listdir("./src/games/game_modules")
     }
 
     # ---------------------------------------------------------------------------- #
@@ -30,6 +30,10 @@ class GameLoading:
             return GameLoading.__load_game(game_name)
         except:
             raise GameNotFound(game_name)
+    
+    @staticmethod
+    def list_all_games() -> list[str]:
+        return list(GameLoading.loaded_games.keys())
 
     # Not to be called externally and only if the game isnt loaded already
     @staticmethod

@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord import ui
 from bot import Bot
+from typing import List
 from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_loading import GameLoading
 from data_wrappers import UserStatus, GameStatus
@@ -11,13 +12,16 @@ class Game(commands.GroupCog, name="game"):
     def __init__(self) -> None:
         super().__init__()
 
+
     @app_commands.command(name="play")
     async def play(
             self,
             interaction: discord.Interaction,
             game_name: str,
     ) -> None:
-
+        """
+        Starts the process of creating a game
+        """
         try:
             game_details = GameLoading.get_game(game_name).details
 
@@ -37,6 +41,29 @@ class Game(commands.GroupCog, name="game"):
         except Exception as e:
             return await interaction.response.send_message(e)
 
+
+    @play.autocomplete('game_name')
+    async def play_autocomplete(
+        self,
+        _interaction: discord.Interaction,
+        current: str
+    ) -> List[app_commands.Choice[str]]:
+        """
+        Autocomplete for game options in the play command
+        """
+        games_list = GameLoading.list_all_games()
+
+        partial_matches = filter(
+            lambda x: current in x,
+            games_list
+        )
+
+        return [
+            app_commands.Choice(name=game_name, value=game_name)
+            for game_name in partial_matches
+        ]
+
+
     @app_commands.command(name="reply")
     async def reply(
         self,
@@ -50,9 +77,18 @@ class Game(commands.GroupCog, name="game"):
             game_details = await GameStatus.get_game(game_id)
             await GameLoading.get_game(game_details.game).reply(game_id, interaction)
             
-    # @app_commands.command(name="quit")
-    # async def quit(self, interaction: discord.Interaction) -> None:
+
+    # @app_commands.command(name="queue")
+    # async def queue(self, interaction: discord.Interaction) -> None:
     #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+
+    # @app_commands.command(name="status")
+    # async def status(self, interaction: discord.Interaction) -> None:
+    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+
+    @app_commands.command(name="quit")
+    async def quit(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
             
 
 class GetPlayersClassInner(ui.View):
@@ -108,19 +144,6 @@ class GetPlayersClassInner(ui.View):
     async def cancel(self, interaction: discord.Interaction, _: ui.Button):
         self.stop()
 
-    # # @play.autocomplete('game')
-    # async def game_autocomplete(self, interaction: discord.Interaction, current: str):
-    #     return [
-    #         app_commands.Choice(name="abc", value="abc")
-    #     ]
-
-    # @app_commands.command(name="queue")
-    # async def queue(self, interaction: discord.Interaction) -> None:
-    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
-
-    # @app_commands.command(name="status")
-    # async def status(self, interaction: discord.Interaction) -> None:
-    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
 
 
