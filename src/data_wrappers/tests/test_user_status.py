@@ -1,9 +1,11 @@
-import pytest
-import redis
 from dataclasses import asdict
 from random import randint
-from exceptions.general_exceptions import PlayerNotFound
+
+import pytest
+import redis
+
 from exceptions.game_exceptions import ActiveGameNotFound
+from exceptions.general_exceptions import PlayerNotFound
 
 from . import UserStatus
 
@@ -22,21 +24,20 @@ test_state_queued_game_first_id = UserStatus.UserState(
     queued_games=["test_game_id"],
 )
 
-db_number = UserStatus._UserStatus__db_number # type: ignore
+db_number = UserStatus._UserStatus__db_number  # type: ignore
+
 
 class TestUserStatus:
     conn = redis.Redis(db=db_number)
     pytestmark = pytest.mark.asyncio
-    
-    
+
     @pytest.fixture(scope="class", autouse=True)
     def setup_delete_db(self):
-
         yield
-        
+
         # After tests in this class clears db
         TestUserStatus.conn.flushdb()
-    
+
     async def test_get_status_existing_user(self):
         """
         Tests if get_status returns the correct UserState for an existing user
@@ -97,7 +98,7 @@ class TestUserStatus:
 
         result = UserStatus.UserState(**result)
 
-        assert result.queued_games == test_state_queued_games.queued_games + [game_id] 
+        assert result.queued_games == test_state_queued_games.queued_games + [game_id]
         assert result.current_game == test_state_queued_games.current_game
 
     async def test_join_game_nonexistent_user(self):
@@ -112,7 +113,9 @@ class TestUserStatus:
 
         result = self.conn.json().get(user_id)
 
-        expected_user_state = UserStatus.UserState(current_game="test_game_id_0", queued_games=[])
+        expected_user_state = UserStatus.UserState(
+            current_game="test_game_id_0", queued_games=[]
+        )
 
         assert result == asdict(expected_user_state)
 
@@ -122,7 +125,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         for user_id in user_ids:
-            user_state = UserStatus.UserState(current_game=None, queued_games=[])
+            user_state = UserStatus.UserState(current_game=None, queued_games=[])  # type: ignore
             self.conn.json().set(user_id, ".", asdict(user_state))
 
         result = await UserStatus.check_users_are_ready("test_game_id_0", user_ids)
@@ -137,7 +140,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(current_game=None, queued_games=[])
+        user_state = UserStatus.UserState(current_game=None, queued_games=[])  # type: ignore
         self.conn.json().set(user_ids[1], ".", asdict(user_state))
 
         result = await UserStatus.check_users_are_ready("test_game_id", user_ids)
@@ -151,7 +154,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(current_game=None, queued_games=[])
+        user_state = UserStatus.UserState(current_game=None, queued_games=[])  # type: ignore
         self.conn.json().set(user_ids[1], ".", asdict(user_state))
 
         result = await UserStatus.check_users_are_ready("wrong", user_ids)
@@ -164,7 +167,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(current_game=None, queued_games=[])
+        user_state = UserStatus.UserState(current_game=None, queued_games=[])  # type: ignore
         self.conn.json().set(user_ids[2], ".", asdict(test_state_current_game))
 
         result = await UserStatus.check_users_are_ready("test_game_id", user_ids)
@@ -184,7 +187,7 @@ class TestUserStatus:
         await UserStatus.clear_game(game_id, user_ids)
 
         assert self.conn.json().get(user_ids[0]) == None
-        
+
         result = UserStatus.UserState(**self.conn.json().get(user_ids[1]))
         assert result.queued_games == []
         assert result.current_game == "test_game_id_wrong"
@@ -229,9 +232,8 @@ class TestUserStatus:
         assert result.queued_games == []
         assert result.current_game == test_state_queued_games.current_game
 
-
     async def test_remove_nonexistent_game(self):
-        """"
+        """ "
         Tests if remove_game raises ActiveGameNotFound when the game is not in the
         user's current_game or queued_games
         """
@@ -240,7 +242,7 @@ class TestUserStatus:
 
         with pytest.raises(ActiveGameNotFound):
             await UserStatus.remove_game("abc", user_id)
-     
+
     async def test_remove_game_nonexistent_user(self):
         """
         Tests if remove_game raises PlayerNotFound when the user does not exist
