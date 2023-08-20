@@ -1,6 +1,16 @@
-
 class GameNotFound(Exception):
     """Raised when game with given name is not found"""
+
+    def __init__(self, game_name: str, *args: object) -> None:
+        self.game_name = game_name
+        super().__init__(*args)
+
+    def __str__(self) -> str:
+        return f"Game {self.game_name} not found"
+
+
+class NoLoadFunction(Exception):
+    """Raised when game module does not have a load function"""
 
     def __init__(self, game_name: str, *args: object) -> None:
         self.game_name = game_name
@@ -26,7 +36,7 @@ class NotEnoughPlayers(Exception):
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return f'This game supports up to {self.min_player_count} players but you tryed to play with {self.player_count} players!'
+        return f"This game supports up to {self.min_player_count} players but you tryed to play with {self.player_count} players!"
 
 
 class ToManyPlayers(Exception):
@@ -38,4 +48,4 @@ class ToManyPlayers(Exception):
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return f'This game supports up to {self.max_player_count} players but you tryed to play with {self.player_count} players!'
+        return f"This game supports up to {self.max_player_count} players but you tryed to play with {self.player_count} players!"
