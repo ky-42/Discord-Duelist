@@ -46,6 +46,9 @@ class GameAdmin:
         for player_id in game_details.confirmed_players:
             # TODO add to game status expire timer
             # TODO check if game needs to be qued
+
+            # Works when called on a game that was qued
+            # cause join game checks if user is already in game
             await UserStatus.join_game(player_id, game_id)
 
         if await UserStatus.check_users_are_ready(
@@ -81,10 +84,12 @@ class GameAdmin:
         game_details = await GameStatus.get_game(game_id)
 
         # Checks if after players were removed from the game if they are in another game that can start
-        await UserStatus.clear_game(game_id, game_details.confirmed_players)
-        for player_id in game_details.confirmed_players:
-            if (user_new_game_id := await UserStatus.check_in_game(player_id)) != None:
-                await GameAdmin.start_game(user_new_game_id)
+        moved_up_games = await UserStatus.clear_game(
+            game_id, game_details.confirmed_players
+        )
+
+        for moved_up_game in moved_up_games:
+            await GameAdmin.start_game(moved_up_game)
 
         await GameStatus.delete_game(game_id)
         await GameData.delete_data(game_id)

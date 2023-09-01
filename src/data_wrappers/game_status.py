@@ -64,9 +64,9 @@ class GameStatus:
     @staticmethod
     @pipeline_watch(__pool, "game_id", ActiveGameNotFound)
     async def player_confirm(
+        pipe: redis_async_client.Pipeline,
         game_id: GameId,
         player_id: int,
-        pipe: redis_sync.client.Pipeline = None,  # type: ignore
     ) -> List[int]:
         """
         Adds a player to the confirmed list and removes them from the unconfirmed list

@@ -16,8 +16,9 @@ from typing import (
 import discord
 
 from bot import bot
-from data_types import GameId
+from data_types import GameId, UserId
 from data_wrappers import GameData, GameStatus
+from data_wrappers.user_status import UserStatus
 from games.game_handling.game_admin import GameAdmin
 
 # Generics for the GameInfo class
@@ -35,7 +36,6 @@ class GameInfo(Generic[S, D]):
     GameData: D
 
 
-# Generics for the get_game_info decorator
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -161,13 +161,37 @@ class Game(ABC):
         pass
 
     @staticmethod
-    async def send_notification(player_id: int) -> None:
+    async def send_notification(game_id: GameId, player_id: UserId) -> None:
         """
         Sends a message that its the players turn
         """
-        await (await bot.get_user(player_id)).send(
-            "Its your turn! Use the /reply command to play your move!"
-        )
+
+        await UserStatus.add_notifiction(game_id, player_id)
+
+        user_dm_channel = await bot.get_dm_channel(player_id)
+
+        # Deletes the old notification message if it exists
+        if notification_id := await UserStatus.get_notification_id(player_id):
+            old_notification_message = await user_dm_channel.fetch_message(
+                notification_id
+            )
+            await old_notification_message.delete()
+
+        notification_amount = await UserStatus.amount_of_notifications(player_id)
+
+        # Needs two different messages cause when there is only one notification
+        # the reply command will automatically reply to the game that sent the notification
+        if notification_amount == 1:
+            new_message = await user_dm_channel.send(
+                "You have a notification! Use the /reply command to play!"
+            )
+        else:
+            new_message = await user_dm_channel.send(
+                f"You have {notification_amount} notifications! Use the /reply command to view them!"
+            )
+
+        # Used to delete the notification message when a new one is sent
+        await UserStatus.set_notification_id(player_id, new_message.id)
 
     @staticmethod
     async def store_data(game_id: GameId, game_data: Type[GameData.GDC]) -> None:

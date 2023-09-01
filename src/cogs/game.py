@@ -1,14 +1,16 @@
 from datetime import timedelta
-from typing import List
+from typing import Dict, List
 
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
 
 from bot import Bot
+from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
-from games.game_handling.game_admin import GameAdmin
+from exceptions.game_exceptions import GameNotFound
 from games.game_handling.game_loading import GameLoading
+from user_interfaces.game_cog_interfaces import GameReplySelect, GetPlayersClassInner
 
 
 class Game(commands.GroupCog, name="game"):
@@ -67,12 +69,44 @@ class Game(commands.GroupCog, name="game"):
     @app_commands.command(name="reply")
     async def reply(self, interaction: discord.Interaction):
         """
-        When ran this will check if the user is in a game and if they are check if it is their turn
-        and if it is send them the game UI
+        When ran this will check if the user is in a game and if they are
+        it will either ask them to select the game they want to play and
+        just send the interaction to the game class (or skip the select part if they
+        are only in one game).
         """
-        if game_id := await UserStatus.check_in_game(interaction.user.id):
-            game_details = await GameStatus.get_game(game_id)
-            await GameLoading.get_game(game_details.game).reply(game_id, interaction)
+        if user_status := await UserStatus.get_status(interaction.user.id):
+            user_notifications = user_status.notifications
+
+            # If there is only only one game then just send the game the interaction
+            if len(user_notifications) == 1:
+                only_game_details = await GameStatus.get_game(user_notifications[0])
+                await UserStatus.remove_notification(
+                    user_notifications[0], interaction.user.id
+                )
+                await GameLoading.get_game(only_game_details.game).reply(
+                    user_notifications[0], interaction
+                )
+                return
+
+            # For all notifications get the game data associated with it
+            game_details: Dict[GameId, GameStatus.GameState] = {}
+
+            for game_id in user_notifications:
+                try:
+                    current_game_details = await GameStatus.get_game(game_id)
+                except GameNotFound:
+                    await UserStatus.remove_notification(game_id, interaction.user.id)
+                else:
+                    if current_game_details.status == 2:
+                        game_details[game_id] = current_game_details
+
+            # Send a dropdown to select a game if there are multiple games
+            if len(game_details) > 0:
+                return await interaction.response.send_message(
+                    content="Please select the game you want to play",
+                    ephemeral=True,
+                    view=GameReplySelect(game_details, interaction),
+                )
 
     # @app_commands.command(name="queue")
     # async def queue(self, interaction: discord.Interaction) -> None:
@@ -89,62 +123,6 @@ class Game(commands.GroupCog, name="game"):
         await interaction.response.send_message(
             "Hello from sub command 1", ephemeral=True
         )
-
-
-class GetPlayersClassInner(ui.View):
-    """
-    Dropdown menu to select players for a game
-    """
-
-    def __init__(self, game_name: str, min: int, max: int):
-        super().__init__()
-        self.game_name = game_name
-
-        # Creates the dropdown menu
-        self.user_select = ui.UserSelect(
-            placeholder="Select a user please!",
-            min_values=min - 1,
-            max_values=max - 1,
-            row=0,
-            custom_id="user-select",
-        )
-        self.add_item(self.user_select)
-
-        # Sets a callback when a player selects a user but doesent confirm
-        self.user_select.callback = self.user_select_callback
-
-    async def user_select_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
-    @ui.button(label="Confirm Players", style=discord.ButtonStyle.green, row=1)
-    async def confirm(self, interaction: discord.Interaction, _: ui.Button):
-        player_one = interaction.user
-        secondary_players = self.user_select.values
-
-        # Double checks that the number of players is allowed. Just in case
-        if GameLoading.check_game_details(self.game_name, len(secondary_players) + 1):
-            await GameAdmin.initialize_game(
-                game_name=self.game_name,
-                bet=0,
-                player_one=player_one.id,
-                secondary_player_ids=[player.id for player in self.user_select.values],
-                player_names={
-                    str(player.id): player.name
-                    for player in (secondary_players + [player_one])
-                },
-            )
-            return await interaction.response.defer()
-
-        else:
-            return await interaction.response.send_message(
-                content="Problem with request", ephemeral=True
-            )
-
-    @ui.button(label="Cancel Game", style=discord.ButtonStyle.red, row=1)
-    async def cancel(self, interaction: discord.Interaction, _: ui.Button):
-        await interaction.response.defer()
-        await interaction.delete_original_response()
-        self.stop()
 
 
 async def setup(bot: Bot) -> None:

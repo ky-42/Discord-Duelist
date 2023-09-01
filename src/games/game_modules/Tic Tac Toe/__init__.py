@@ -45,7 +45,7 @@ class TicTacToe(Game):
         await Game.store_data(game_id, game_data)
 
         # Send notification to first player
-        await Game.send_notification(game_data.current_player)
+        await Game.send_notification(game_id, game_data.current_player)
 
     @staticmethod
     @get_game_info
@@ -90,7 +90,7 @@ class TicTacToe(Game):
             )
 
             await Game.store_data(game_id, game_data)
-            await Game.send_notification(game_data.current_player)
+            await Game.send_notification(game_id, game_data.current_player)
 
 
 def load() -> Type[Game]:
