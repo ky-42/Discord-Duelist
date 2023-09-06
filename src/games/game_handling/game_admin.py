@@ -19,7 +19,7 @@ class GameAdmin:
         # Includes player one. Is in form {id: username}
         player_names: Mapping[str, str],
     ):
-        game_id = GameStatus.create_game_id()
+        game_id = GameStatus.__create_game_id()
 
         game_details = GameStatus.GameState(
             status=0,
@@ -32,7 +32,7 @@ class GameAdmin:
         )
 
         # Adds game to game status store
-        await GameStatus.add_game(game_id, game_details, bot.game_requested_expiry)
+        game_id = await GameStatus.add_game(game_details, bot.game_requested_expiry)
 
         # Sends out confirmations to secondary players
         await GameAdmin.confirm_game(game_id, game_details)
@@ -146,7 +146,7 @@ class GameAdmin:
                 GameLoading.get_game(game_state.game).get_details(),
             ),
             view=GameConfirm(game_id, GameAdmin.player_confirm, GameAdmin.cancel_game),
-            delete_after=bot.game_requested_expiry,
+            delete_after=bot.game_requested_expiry.seconds,
         )
 
     @staticmethod

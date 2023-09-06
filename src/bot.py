@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import discord
 from discord.ext import commands
 
@@ -25,8 +27,8 @@ class Bot(commands.Bot):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.game_requested_expiry = 15 * 60  # 15 minutes
-        self.game_no_move_expiry = 48 * 60 * 60  # 2 days
+        self.game_requested_expiry = timedelta(minutes=15)
+        self.game_no_move_expiry = timedelta(days=2)
 
     async def setup_hook(self: commands.Bot):
         # Loads all cogs
