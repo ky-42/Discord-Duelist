@@ -149,7 +149,7 @@ class GameAdmin:
 
     @staticmethod
     async def player_confirm(player_id: int, game_id: GameId):
-        unconfirmed_list = await GameStatus.player_confirm(game_id, player_id)
+        unconfirmed_list = await GameStatus.confirm_player(game_id, player_id)
 
         if len(unconfirmed_list) == 0:
             await GameAdmin.start_game(game_id)

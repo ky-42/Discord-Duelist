@@ -18,11 +18,20 @@ def pipeline_watch(
 ):
     """
     Decorator for setting a watch and pipeline on some data.
-    The key for the value to be watched must be passed to the wrapped function
-    and the name of the paramter must be passed to the decorator in the watch_param_name
-    parameter.
 
-    To use this decorator the wrapped functions first parameter must accept an async pipeline
+    IMPORTANT: To use this decorator the wrapped function must
+    be asyncronous and accept an asyncronous redis pipeline as
+    its first parameter
+
+    Parameters:
+        redis_pool[redis_sync.Redis]:
+            redis pool to use the operation
+
+        watch_param_name[str]:
+            name of the parameter in the decorated function to watch
+
+        key_not_found_excepton[Optional[Exception]]:
+            Exception to raise if key to watch is not found
     """
 
     def decorator(

@@ -57,7 +57,7 @@ class TestGameStatus:
 
         assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
 
-    async def test_showdowkey_timeout(self):
+    async def test_shadowkey_timeout(self):
         callback_ran = False
         callback_id = "wrong"
         callback_state: GameStatus.GameState | None = None
@@ -120,7 +120,7 @@ class TestGameStatus:
         test_game_id = GameStatus._GameStatus__create_game_id()
         self.conn.json().set(test_game_id, ".", asdict(test_state))
 
-        remaining = await GameStatus.player_confirm(game_id=test_game_id, player_id=2)
+        remaining = await GameStatus.confirm_player(game_id=test_game_id, player_id=2)
 
         new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
 
@@ -135,11 +135,11 @@ class TestGameStatus:
         self.conn.json().set(test_game_id, ".", asdict(test_state))
 
         with pytest.raises(PlayerNotFound):
-            await GameStatus.player_confirm(game_id=test_game_id, player_id=4)
+            await GameStatus.confirm_player(game_id=test_game_id, player_id=4)
 
     async def test_player_game_not_found(self):
         with pytest.raises(ActiveGameNotFound):
-            await GameStatus.player_confirm(game_id="test", player_id=2)
+            await GameStatus.confirm_player(game_id="test", player_id=2)
 
     async def test_set_game_queued(self):
         test_game_id = GameStatus._GameStatus__create_game_id()

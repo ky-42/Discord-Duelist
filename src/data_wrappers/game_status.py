@@ -37,7 +37,7 @@ class GameStatus:
         Used to store data on all games no matter the game type
 
         status[int]:
-            0 = unconfirmed | 1 = confirmed but queued | 2 = in progress | 3 = finished
+            0 = unconfirmed | 1 = confirmed but queued | 2 = in progress
 
         game[str]:
             Name of game type
@@ -69,7 +69,7 @@ class GameStatus:
     # Callbacks for when games expire
     __expire_callbacks: dict[str, Callable[[GameId, GameState], Awaitable[None]]] = {}
     # Instance of pubsub task. Used to handle shadow key expire events
-    __expire_pubsub_task: asyncio.Task | None = None
+    __pubsub_task: asyncio.Task | None = None
 
     @staticmethod
     def __get_shadow_key(game_id: GameId) -> str:
@@ -88,19 +88,22 @@ class GameStatus:
         return "".join(random.choices(string.ascii_letters + string.digits, k=16))
 
     @staticmethod
-    async def set_game_expire(game_id: GameId, extend_time: timedelta):
-        shadow_key = GameStatus.__get_shadow_key(game_id)
-        await GameStatus.__pool.expire(shadow_key, extend_time)
+    async def add_game(game_status: GameState, expire_time: timedelta) -> GameId:
+        """
+        Adds a game to the db
 
-    @staticmethod
-    async def add_game(state: GameState, timeout: timedelta) -> GameId:
+        Returns the game id
+        """
+
         game_id = GameStatus.__create_game_id()
 
-        await GameStatus.__pool.json().set(game_id, ".", asdict(state))
+        await GameStatus.__pool.json().set(game_id, ".", asdict(game_status))
 
+        # Creates shadow key that expires so that the game
+        # can be retrevied after it expires
         shadow_key = GameStatus.__get_shadow_key(game_id)
         await GameStatus.__pool.set(shadow_key, -1)
-        await GameStatus.__pool.expire(shadow_key, timeout)
+        await GameStatus.__pool.expire(shadow_key, expire_time)
 
         return game_id
 
@@ -117,41 +120,18 @@ class GameStatus:
         raise ActiveGameNotFound
 
     @staticmethod
-    async def delete_game(game_id: GameId):
-        await GameStatus.__pool.delete(game_id)
+    async def set_game_expire(game_id: GameId, extend_time: timedelta):
+        """
+        Sets the amount of time before a game expires
+        """
 
+        # Only need to update shadow key cause it is the only one that expires
         shadow_key = GameStatus.__get_shadow_key(game_id)
-        await GameStatus.__pool.delete(shadow_key)
+        await GameStatus.__pool.expire(shadow_key, extend_time)
 
     @staticmethod
-    @pipeline_watch(__pool, "game_id", ActiveGameNotFound)
-    async def player_confirm(
-        pipe: redis_async_client.Pipeline,
-        game_id: GameId,
-        player_id: int,
-    ) -> List[int]:
-        """
-        Adds a player to the confirmed list and removes them from the unconfirmed list
-        Returns unconfirmed list
-        """
-
-        # Make sure player exists
-        if (
-            index := await pipe.json().arrindex(
-                game_id, ".unconfirmed_players", player_id
-            )
-        ) > -1:
-            # Switch to buffered mode after watch
-            pipe.multi()
-            pipe.json().arrpop(game_id, ".unconfirmed_players", index)
-            pipe.json().arrappend(game_id, ".confirmed_players", player_id)
-            pipe.json().get(game_id, ".unconfirmed_players")
-            results = await pipe.execute()
-
-            return results[2]
-
-        else:
-            raise PlayerNotFound(player_id)
+    async def set_game_unconfirmed(game_id: GameId):
+        await GameStatus.__pool.json().set(game_id, ".status", 0)
 
     @staticmethod
     async def set_game_queued(game_id: GameId):
@@ -162,74 +142,155 @@ class GameStatus:
         await GameStatus.__pool.json().set(game_id, ".status", 2)
 
     @staticmethod
-    async def expire_handler(msg):
+    @pipeline_watch(__pool, "game_id", ActiveGameNotFound)
+    async def confirm_player(
+        pipe: redis_async_client.Pipeline,
+        game_id: GameId,
+        player_id: int,
+    ) -> List[int]:
+        """
+        Adds a player to the confirmed list and removes them from the
+        unconfirmed list
+
+        Raises ActiveGameNotFound if game is not found
+        Raises PlayerNotFound if player is not in unconfirmed list
+
+        Returns updated unconfirmed_players list
         """
 
-        IMPORTANT: Could cause problems if multiple instances of the server are running
-        """
-        for callback in GameStatus.__expire_callbacks.values():
-            try:
-                msg = msg["data"].decode("utf-8")
-                if msg.startswith(GameStatus.__get_shadow_key("")):
-                    expired_game_data = await GameStatus.get_game(msg.split(":")[1])
-                    game_key = msg.split(":")[1]
-                else:
-                    print("Not shadow key")
-                    continue
-            except AttributeError:
-                raise Exception("Message not in utf-8 format")
-            except ActiveGameNotFound:
-                raise ActiveGameNotFound("Expired shadow key game id not found")
-            except IndexError:
-                raise IndexError("Shadow key not in correct format")
-            except:
-                raise Exception("Unknown error")
-            else:
-                await callback(game_key, expired_game_data)
-                await GameStatus.delete_game(game_key)
+        # Make sure player is in the unconfirmed list
+        if (
+            unconfirmed_player_index := await pipe.json().arrindex(
+                game_id, ".unconfirmed_players", player_id
+            )
+        ) > -1:
+            # Switch to buffered mode to make sure all commands
+            # are executed without any external changes to the lists
+            pipe.multi()
+            # Moves player from unconfirmed to confirmed list
+            pipe.json().arrpop(
+                game_id, ".unconfirmed_players", unconfirmed_player_index
+            )
+            pipe.json().arrappend(game_id, ".confirmed_players", player_id)
+            pipe.json().get(game_id, ".unconfirmed_players")
+            results = await pipe.execute()
+
+            return results[2]
+
+        else:
+            raise PlayerNotFound(player_id)
 
     @staticmethod
-    async def add_expire_handler(func: Callable[[GameId, GameState], Awaitable[None]]):
+    async def delete_game(game_id: GameId):
+        """
+        Deletes game status from db
         """
 
-        IMPORTANT: Could cause problems if multiple instances of the server are running
+        await GameStatus.__pool.delete(game_id)
+
+        # Deletes shadow key cause their expire event could be listened to
+        shadow_key = GameStatus.__get_shadow_key(game_id)
+        await GameStatus.__pool.delete(shadow_key)
+
+    @staticmethod
+    async def add_expire_handler(
+        game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
+    ):
         """
-        if not GameStatus.__expire_pubsub_task:
-            pubsub_obj = GameStatus.__pool.pubsub()
+        Adds a callback to be called when a game expires
+
+        game_expire_callback[Callable[[GameId, GameState], Awaitable[None]]]:
+            The passed function must accept the GameId of the expired game
+            as its first parameter and the GameState of the expired game as
+            its second parameter. It must also be asyncronous and return nothing
+
+        Raises FuncExists if a function with the same name has already been added
+
+        IMPORTANT: Could cause problems if multiple instances of the bot are running
+        """
+
+        if not GameStatus.__pubsub_task:
+            # Sets config to listen for expire events
             await GameStatus.__pool.config_set("notify-keyspace-events", "Ex")
+
+            # Creates pubsub object and subscribes to expire events
+            pubsub_obj = GameStatus.__pool.pubsub()
             await pubsub_obj.psubscribe(
                 **{
                     f"__keyevent@{GameStatus.__db_number}__:expired": GameStatus.expire_handler
                 }
             )
-            GameStatus.__expire_pubsub_task = asyncio.create_task(pubsub_obj.run())
 
-        if (name := func.__name__) not in GameStatus.__expire_callbacks:
-            GameStatus.__expire_callbacks[name] = func
+            # Starts pubsub object and stores task
+            GameStatus.__pubsub_task = asyncio.create_task(pubsub_obj.run())
+
+        if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
+            # Stores callback by name
+            GameStatus.__expire_callbacks[name] = game_expire_callback
+
         else:
             raise FuncExists(name)
 
     @staticmethod
-    async def remove_expire_handler(func: Callable[[GameId, GameState], None]):
+    async def expire_handler(msg):
         """
+        Handler for when a key expires
+
+        Runs all the callbacks registed with the add_expire_handler function.
+
+        Raises Exception if message is not in utf-8 format
+        Raises Exception if unknown error occurs
+        Raises ActiveGameNotFound if the expired game is not found
+
+        IMPORTANT: Could cause problems if multiple instances of the bot are running
+        """
+
+        try:
+            msg = msg["data"].decode("utf-8")
+        except AttributeError:
+            raise Exception("Message not in utf-8 format")
+        except:
+            raise Exception("Unknown error")
+        else:
+            # Checks if message is a shadow key
+            if msg.startswith(GameStatus.__get_shadow_key("")):
+                game_id = msg.split(":")[1]
+
+                expired_game_data = await GameStatus.get_game(game_id)
+                await GameStatus.delete_game(game_id)
+
+                for callback in GameStatus.__expire_callbacks.values():
+                    await callback(game_id, expired_game_data)
+            else:
+                print("Not shadow key")
+
+    @staticmethod
+    async def remove_expire_handler(
+        game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
+    ):
+        """
+        Removes a callback from the list of callbacks to be called when a key expires
+
+        Raises FuncNotFound if function is not found
 
         IMPORTANT: Could cause problems if multiple instances of the server are running
         """
-        if (name := func.__name__) not in GameStatus.__expire_callbacks:
+
+        if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
             raise FuncNotFound(name)
+
         else:
             del GameStatus.__expire_callbacks[name]
 
+            # If no callbacks left stops pubsub task and resets config for performance
             if (
                 len(GameStatus.__expire_callbacks.keys()) == 0
-                and GameStatus.__expire_pubsub_task
+                and GameStatus.__pubsub_task
             ):
                 await GameStatus.__pool.config_set("notify-keyspace-events", "")
-                GameStatus.__expire_pubsub_task.cancel()
-                # FIGURE OUT WHY THIS IS NEED IF AT ALL
-                # I put it here cause if you hover the pubsub
-                # classes run func it shows this in the example
-                print(await GameStatus.__expire_pubsub_task)
-                print("his")
+                GameStatus.__pubsub_task.cancel()
+                # FIGURE OUT WHY THIS IS NEEDED IF AT ALL
+                # I put it here cause it was in the example
+                await GameStatus.__pubsub_task
 
-                GameStatus.__expire_pubsub_task = None
+                GameStatus.__pubsub_task = None
