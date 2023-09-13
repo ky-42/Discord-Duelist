@@ -19,8 +19,6 @@ class GameAdmin:
         # Includes player one. Is in form {id: username}
         player_names: Mapping[str, str],
     ):
-        game_id = GameStatus.__create_game_id()
-
         game_details = GameStatus.GameState(
             status=0,
             game=game_name,
