@@ -1,10 +1,9 @@
 import asyncio
 import random
 import string
-from ast import Await
 from dataclasses import asdict, dataclass
 from datetime import timedelta
-from typing import Awaitable, Callable, List, Mapping
+from typing import Awaitable, Callable, List, Literal, Mapping
 
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
@@ -13,14 +12,17 @@ from data_types import GameId
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import FuncExists, FuncNotFound, PlayerNotFound
 
-from .utils import pipeline_watch
+from .utils import is_main_instance, pipeline_watch
 
 
 class GameStatus:
     """
     API wrapper for reddis db which handles the status of games
     all entrys have a shadow key to keep track of when games expire.
-    This allows for the game status to be retrevied after the game has expired
+    This allows for the game status to be retrevied after the game has expired.
+
+    IMPORTANT: For the games to expire properly the start_expire_listener function
+    must be called before any games are added to the db
 
     All data in the db is in form
     GameId: GameState
@@ -61,7 +63,7 @@ class GameStatus:
         status: int
         game: str
         bet: int
-        starting_player: int
+        starting_player: Literal[0, 1, 2]
         player_names: Mapping[str, str]
         confirmed_players: List[int]
         unconfirmed_players: List[int]
@@ -88,7 +90,43 @@ class GameStatus:
         return "".join(random.choices(string.ascii_letters + string.digits, k=16))
 
     @staticmethod
-    async def add_game(game_status: GameState, expire_time: timedelta) -> GameId:
+    async def start_expire_listener():
+        """
+        Starts the expire listener
+
+        Important: This function must be called before any games are added to the db
+        """
+
+        # Sets config to listen for expire events
+        await GameStatus.__pool.config_set("notify-keyspace-events", "Ex")
+
+        # Creates pubsub object and subscribes to expire events
+        pubsub_obj = GameStatus.__pool.pubsub()
+        await pubsub_obj.psubscribe(
+            **{
+                f"__keyevent@{GameStatus.__db_number}__:expired": GameStatus.__expire_handler
+            }
+        )
+
+        GameStatus.__pubsub_task = asyncio.create_task(pubsub_obj.run())
+
+    @staticmethod
+    async def stop_expire_listener():
+        """
+        Stops the expire listener
+        """
+
+        # Sets config to listen for expire events
+        await GameStatus.__pool.config_set("notify-keyspace-events", "")
+
+        if GameStatus.__pubsub_task:
+            GameStatus.__pubsub_task.cancel()
+            await GameStatus.__pubsub_task
+
+            GameStatus.__pubsub_task = None
+
+    @staticmethod
+    async def add(game_status: GameState, expire_time: timedelta) -> GameId:
         """
         Adds a game to the db
 
@@ -108,7 +146,7 @@ class GameStatus:
         return game_id
 
     @staticmethod
-    async def get_game(game_id: GameId) -> GameState:
+    async def get(game_id: GameId) -> GameState:
         """
         Returns game data if game is found
 
@@ -120,7 +158,7 @@ class GameStatus:
         raise ActiveGameNotFound
 
     @staticmethod
-    async def set_game_expire(game_id: GameId, extend_time: timedelta):
+    async def set_expiry(game_id: GameId, extend_time: timedelta):
         """
         Sets the amount of time before a game expires
         """
@@ -181,7 +219,7 @@ class GameStatus:
             raise PlayerNotFound(player_id)
 
     @staticmethod
-    async def delete_game(game_id: GameId):
+    async def delete(game_id: GameId):
         """
         Deletes game status from db
         """
@@ -193,11 +231,15 @@ class GameStatus:
         await GameStatus.__pool.delete(shadow_key)
 
     @staticmethod
+    @is_main_instance
     async def add_expire_handler(
         game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
     ):
         """
         Adds a callback to be called when a game expires
+
+        IMPORTANT: For the games to expire properly the start_expire_listener function
+        needs to be called or else any added functions will not be ran
 
         game_expire_callback[Callable[[GameId, GameState], Awaitable[None]]]:
             The passed function must accept the GameId of the expired game
@@ -205,24 +247,7 @@ class GameStatus:
             its second parameter. It must also be asyncronous and return nothing
 
         Raises FuncExists if a function with the same name has already been added
-
-        IMPORTANT: Could cause problems if multiple instances of the bot are running
         """
-
-        if not GameStatus.__pubsub_task:
-            # Sets config to listen for expire events
-            await GameStatus.__pool.config_set("notify-keyspace-events", "Ex")
-
-            # Creates pubsub object and subscribes to expire events
-            pubsub_obj = GameStatus.__pool.pubsub()
-            await pubsub_obj.psubscribe(
-                **{
-                    f"__keyevent@{GameStatus.__db_number}__:expired": GameStatus.expire_handler
-                }
-            )
-
-            # Starts pubsub object and stores task
-            GameStatus.__pubsub_task = asyncio.create_task(pubsub_obj.run())
 
         if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
             # Stores callback by name
@@ -232,7 +257,8 @@ class GameStatus:
             raise FuncExists(name)
 
     @staticmethod
-    async def expire_handler(msg):
+    @is_main_instance
+    async def __expire_handler(msg):
         """
         Handler for when a key expires
 
@@ -241,8 +267,6 @@ class GameStatus:
         Raises Exception if message is not in utf-8 format
         Raises Exception if unknown error occurs
         Raises ActiveGameNotFound if the expired game is not found
-
-        IMPORTANT: Could cause problems if multiple instances of the bot are running
         """
 
         try:
@@ -256,8 +280,8 @@ class GameStatus:
             if msg.startswith(GameStatus.__get_shadow_key("")):
                 game_id = msg.split(":")[1]
 
-                expired_game_data = await GameStatus.get_game(game_id)
-                await GameStatus.delete_game(game_id)
+                expired_game_data = await GameStatus.get(game_id)
+                await GameStatus.delete(game_id)
 
                 for callback in GameStatus.__expire_callbacks.values():
                     await callback(game_id, expired_game_data)
@@ -265,6 +289,7 @@ class GameStatus:
                 print("Not shadow key")
 
     @staticmethod
+    @is_main_instance
     async def remove_expire_handler(
         game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
     ):
@@ -272,8 +297,6 @@ class GameStatus:
         Removes a callback from the list of callbacks to be called when a key expires
 
         Raises FuncNotFound if function is not found
-
-        IMPORTANT: Could cause problems if multiple instances of the server are running
         """
 
         if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
@@ -281,16 +304,3 @@ class GameStatus:
 
         else:
             del GameStatus.__expire_callbacks[name]
-
-            # If no callbacks left stops pubsub task and resets config for performance
-            if (
-                len(GameStatus.__expire_callbacks.keys()) == 0
-                and GameStatus.__pubsub_task
-            ):
-                await GameStatus.__pool.config_set("notify-keyspace-events", "")
-                GameStatus.__pubsub_task.cancel()
-                # FIGURE OUT WHY THIS IS NEEDED IF AT ALL
-                # I put it here cause it was in the example
-                await GameStatus.__pubsub_task
-
-                GameStatus.__pubsub_task = None
