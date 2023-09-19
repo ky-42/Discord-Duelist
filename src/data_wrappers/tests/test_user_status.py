@@ -208,7 +208,7 @@ class TestUserStatus:
         user_id = randint(1, 10000)
         self.conn.json().set(user_id, ".", asdict(test_state_current_game))
 
-        await UserStatus.remove_game("test_game_id", user_id)
+        await UserStatus._UserStatus__remove_game("test_game_id", user_id)
 
         assert self.conn.json().get(user_id) == None
 
@@ -220,7 +220,7 @@ class TestUserStatus:
         user_id = randint(1, 10000)
         self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
 
-        await UserStatus.remove_game("test_game_id", user_id)
+        await UserStatus._UserStatus__remove_game("test_game_id", user_id)
 
         result = UserStatus.UserState(**self.conn.json().get(user_id))
         assert result.current_games[-1] == test_state_queued_games.queued_games[0]
@@ -233,7 +233,7 @@ class TestUserStatus:
         user_id = randint(1, 10000)
         self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
 
-        await UserStatus.remove_game("test_game_id_2", user_id)
+        await UserStatus._UserStatus__remove_game("test_game_id_2", user_id)
 
         result = UserStatus.UserState(**self.conn.json().get(user_id))
 
@@ -249,7 +249,7 @@ class TestUserStatus:
         self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
 
         with pytest.raises(ActiveGameNotFound):
-            await UserStatus.remove_game("abc", user_id)
+            await UserStatus._UserStatus__remove_game("abc", user_id)
 
     async def test_remove_game_nonexistent_user(self):
         """
@@ -258,4 +258,4 @@ class TestUserStatus:
         user_id = randint(1, 10000)
 
         with pytest.raises(ValueError):
-            await UserStatus.remove_game("abc", user_id)
+            await UserStatus._UserStatus__remove_game("abc", user_id)

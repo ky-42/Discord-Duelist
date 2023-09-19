@@ -157,7 +157,7 @@ class UserStatus:
         for user in user_ids:
             try:
                 # Removes the game and stores the ids of the games that moved from queued_games to current_games
-                if move_up_id := await UserStatus.remove_game(game_id, user):
+                if move_up_id := await UserStatus.__remove_game(game_id, user):
                     if move_up_id not in move_up_games:
                         move_up_games.append(move_up_id)
 
@@ -170,7 +170,7 @@ class UserStatus:
 
     @staticmethod
     @pipeline_watch(__pool, "user_id")
-    async def remove_game(
+    async def __remove_game(
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
         user_id: UserId,
@@ -196,6 +196,20 @@ class UserStatus:
                     ".current_games",
                     current_status.current_games.index(game_id),
                 )
+
+                if (
+                    len(current_status.current_games) <= UserStatus.__max_games
+                    and len(current_status.queued_games) > 0
+                ):
+                    # Moves games from queued_games to current_games if there is room
+                    # TODO maybe make this use pubsub so that its not on the calling function
+                    # to check if the moved up game is ready cause GameAdmin could just link to this
+                    move_up_game = await pipe.json().arrpop(user_id, ".queued_games")
+
+                    await pipe.json().arrappend(user_id, ".current_games", move_up_game)
+
+                    return move_up_game
+
             elif game_id in current_status.queued_games:
                 await pipe.json().arrpop(
                     str(user_id),
@@ -205,18 +219,16 @@ class UserStatus:
             else:
                 raise ActiveGameNotFound(game_id)
 
-            # Moves games from queued_games to current_games if there is room
-            # TODO maybe make this use pubsub so that its not on the calling function
-            # to check if the moved up game is ready cause GameAdmin could just link to this
             if (
-                len(current_status.current_games) <= UserStatus.__max_games
-                and len(current_status.queued_games) > 0
+                len(current_status.current_games) + len(current_status.queued_games)
+                == 1
             ):
-                move_up_game = await pipe.json().arrpop(user_id, ".queued_games")
+                # If the user is not in any games, delete them from the db
+                # This works cause to make it this far in the function, the game must have been removed
+                # and if there was only one before there are none left
+                await pipe.json().delete(user_id)
+                return None
 
-                await pipe.json().arrappend(user_id, ".current_games", move_up_game)
-
-                return move_up_game
         else:
             raise PlayerNotFound(user_id)
 
