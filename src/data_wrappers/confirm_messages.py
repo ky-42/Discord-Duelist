@@ -1,15 +1,10 @@
-import random
-import string
-from dataclasses import asdict, dataclass
 from datetime import timedelta
-from typing import List, Mapping
+from typing import List
 
 import redis.asyncio as redis_sync
 
-from bot import bot
 from data_types import GameId
 from exceptions.game_exceptions import ActiveGameNotFound
-from exceptions.general_exceptions import PlayerNotFound
 
 
 class ConfirmMessages:
