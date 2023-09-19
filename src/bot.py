@@ -3,6 +3,7 @@ from datetime import timedelta
 import discord
 from discord.ext import commands
 
+from data_wrappers.game_status import GameStatus
 from exceptions.general_exceptions import PlayerNotFound
 
 """
@@ -41,6 +42,9 @@ class Bot(commands.Bot):
         MY_GUILD = discord.Object(id=715439787288428605)
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
+
+        # Starts the game status expiry listener
+        await GameStatus.start_expire_listener()
 
     # Custom get_user that raises PlayerNotFound and trys to fetch user as well
     async def get_user(self, user_id: int) -> discord.User:

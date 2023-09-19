@@ -104,7 +104,7 @@ class GameReplySelect(ui.View):
     @ui.button(label="Reply", style=discord.ButtonStyle.primary, row=1)
     async def confirm(self, interaction: discord.Interaction, _: ui.Button):
         if len(self.game_dropdown.values) > 0:
-            only_game_details = await GameStatus.get_game(self.game_dropdown.values[0])
+            only_game_details = await GameStatus.get(self.game_dropdown.values[0])
 
             await UserStatus.remove_notification(
                 self.game_dropdown.values[0], interaction.user.id

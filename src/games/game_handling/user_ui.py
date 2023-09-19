@@ -78,7 +78,7 @@ class GameConfirm(discord.ui.View):
         # Will delete interaction after 5 seconds
         # if interaction.message:
         #     await interaction.message.edit(delete_after=5)
-        game_details = await GameStatus.get_game(self.game_id)
+        game_details = await GameStatus.get(self.game_id)
 
         for player_id in game_details.confirmed_players:
             await bot.get_user(int(player_id)).send(

@@ -87,7 +87,7 @@ def get_game_info(
             fetched_game_data: GameData.GameDataClass | None = None
 
             if state_type != type(None):
-                fetched_state = await GameStatus.get_game(game_id)
+                fetched_state = await GameStatus.get(game_id)
 
             if game_data_type != type(None):
                 fetched_game_data = await GameData.retrive_data(game_id, game_data_type)
@@ -224,7 +224,7 @@ class Game(ABC):
 
                 else:
                     await (await bot.get_user(player)).send(
-                        f"Game of {game_state.game} is over! The winner is {game_state.player_names[str(winner[0])]}!"
+                        f"Game of {game_state.game} is over! The winner is {game_state.player_names[winner[0]]}!"
                     )
             else:
                 await (await bot.get_user(player)).send(

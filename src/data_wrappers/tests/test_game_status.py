@@ -1,4 +1,5 @@
 import asyncio
+import random
 from dataclasses import asdict
 from datetime import timedelta
 
@@ -35,29 +36,91 @@ class TestGameStatus:
         # After tests in this class clears db
         TestGameStatus.conn.flushdb()
 
-    async def test_successful_get(self):
-        """
-        Tests if game data can be fetch successfully
-        """
+    async def test_add(self):
+        test_game_id = await GameStatus.add(test_state, timedelta(minutes=15))
 
+        assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
+        # Checks if shadow key was created
+        assert (
+            int(self.conn.get(GameStatus._GameStatus__get_shadow_key(test_game_id)))
+            == -1
+        )
+
+    async def test_successful_get(self):
         # Creates game id and add test data to redis db
         test_game_id = GameStatus._GameStatus__create_game_id()
         self.conn.json().set(test_game_id, ".", asdict(test_state))
 
-        got_data: GameStatus.GameState = await GameStatus.get_game(test_game_id)
+        got_data: GameStatus.GameState = await GameStatus.get(test_game_id)
 
         assert got_data == test_state
 
     async def test_unsuccessful_get(self):
         with pytest.raises(ActiveGameNotFound):
-            await GameStatus.get_game("wrong")
+            await GameStatus.get("wrong")
 
-    async def test_basic_add(self):
-        test_game_id = await GameStatus.add_game(test_state, timedelta(minutes=15))
+    async def test_set_expire(self):
+        test_game_id = GameStatus._GameStatus__create_game_id()
+        self.conn.json().set(test_game_id, ".", asdict(test_state))
+
+        await GameStatus.set_expiry(test_game_id, timedelta(seconds=0.1))
 
         assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
 
+        await asyncio.sleep(0.2)
+
+        assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
+
+        assert (
+            self.conn.json().get(GameStatus._GameStatus__get_shadow_key(test_game_id))
+            == None
+        )
+
+    async def test_delete_game(self):
+        test_game_id = GameStatus._GameStatus__create_game_id()
+        self.conn.json().set(test_game_id, ".", asdict(test_state))
+
+        await GameStatus.delete(test_game_id)
+
+        assert self.conn.json().get(test_game_id) == None
+
+    async def test_player_confirm(self):
+        sample = test_state
+
+        test_game_id = GameStatus._GameStatus__create_game_id()
+        self.conn.json().set(test_game_id, ".", asdict(sample))
+
+        random_player = random.choice(sample.unconfirmed_players)
+
+        remaining = await GameStatus.confirm_player(
+            game_id=test_game_id, player_id=random_player
+        )
+
+        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
+
+        assert (
+            new_state.confirmed_players == sample.confirmed_players + [random_player]
+            and new_state.confirmed_players != test_state.confirmed_players
+        )
+
+        sample.unconfirmed_players.remove(random_player)
+
+        assert remaining == sample.unconfirmed_players
+
+    async def test_player_confirm_player_not_found(self):
+        test_game_id = GameStatus._GameStatus__create_game_id()
+        self.conn.json().set(test_game_id, ".", asdict(test_state))
+
+        with pytest.raises(PlayerNotFound):
+            await GameStatus.confirm_player(game_id=test_game_id, player_id=4)
+
+    async def test_player_game_not_found(self):
+        with pytest.raises(ActiveGameNotFound):
+            await GameStatus.confirm_player(game_id="test", player_id=2)
+
     async def test_shadowkey_timeout(self):
+        await GameStatus.start_expire_listener()
+
         callback_ran = False
         callback_id = "wrong"
         callback_state: GameStatus.GameState | None = None
@@ -74,11 +137,13 @@ class TestGameStatus:
 
         await GameStatus.add_expire_handler(shadowkey_callback)
 
-        test_game_id = await GameStatus.add_game(test_state, timedelta(seconds=2))
+        test_game_id = await GameStatus.add(test_state, timedelta(seconds=4))
 
         assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
 
         await asyncio.sleep(5)
+
+        assert callback_ran
 
         assert self.conn.json().get(callback_id) == None
         assert callback_state == test_state
@@ -87,77 +152,3 @@ class TestGameStatus:
             self.conn.json().get(GameStatus._GameStatus__get_shadow_key(test_game_id))
             == None
         )
-
-        assert callback_ran
-
-    async def test_extend_game(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-        self.conn.expire(test_game_id, timedelta(seconds=1))
-
-        assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
-
-        await GameStatus.set_game_expire(test_game_id, timedelta(seconds=0.4))
-
-        assert GameStatus.GameState(**self.conn.json().get(test_game_id)) == test_state
-
-        await asyncio.sleep(0.7)
-
-        assert (
-            self.conn.json().get(GameStatus._GameStatus__get_shadow_key(test_game_id))
-            == None
-        )
-
-    async def test_delete_game(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-
-        await GameStatus.delete_game(test_game_id)
-
-        assert self.conn.json().get(test_game_id) == None
-
-    async def test_player_confirm(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-
-        remaining = await GameStatus.confirm_player(game_id=test_game_id, player_id=2)
-
-        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
-
-        assert (
-            new_state.confirmed_players == [1, 2]
-            and new_state.confirmed_players != test_state.confirmed_players
-            and remaining == []
-        )
-
-    async def test_player_confirm_player_not_found(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-
-        with pytest.raises(PlayerNotFound):
-            await GameStatus.confirm_player(game_id=test_game_id, player_id=4)
-
-    async def test_player_game_not_found(self):
-        with pytest.raises(ActiveGameNotFound):
-            await GameStatus.confirm_player(game_id="test", player_id=2)
-
-    async def test_set_game_queued(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-
-        await GameStatus.set_game_queued(game_id=test_game_id)
-
-        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
-
-        assert new_state.status == 1
-
-    async def test_set_game_in_progress(self):
-        test_game_id = GameStatus._GameStatus__create_game_id()
-        self.conn.json().set(test_game_id, ".", asdict(test_state))
-
-        await GameStatus.set_game_queued(game_id=test_game_id)
-        await GameStatus.set_game_in_progress(game_id=test_game_id)
-
-        new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
-
-        assert new_state.status == 2

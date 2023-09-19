@@ -1,10 +1,12 @@
 import functools
 import inspect
+import os
 from typing import Awaitable, Callable, Concatenate, ParamSpec, Type, TypeVar
 
 import redis
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
+from dotenv import load_dotenv
 
 # Generic type for a function that takes a pipeline and some other parameters
 P = ParamSpec("P")
@@ -70,3 +72,21 @@ def pipeline_watch(
         return wrapper
 
     return decorator
+
+
+def is_main_instance(fn):
+    needs_await: bool = inspect.iscoroutinefunction(fn)
+
+    async def async_wrapper(*args, **kwargs):
+        load_dotenv()
+        if os.getenv("MAIN_INSTANCE") == "True":
+            return await fn(*args, **kwargs)
+
+    def wrapper(*args, **kwargs):
+        load_dotenv()
+        if os.getenv("MAIN_INSTANCE") == "True":
+            return fn(*args, **kwargs)
+
+    if needs_await:
+        return async_wrapper
+    return wrapper

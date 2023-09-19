@@ -30,7 +30,7 @@ class GameAdmin:
         )
 
         # Adds game to game status store
-        game_id = await GameStatus.add_game(game_details, bot.game_requested_expiry)
+        game_id = await GameStatus.add(game_details, bot.game_requested_expiry)
 
         # Sends out confirmations to secondary players
         await GameAdmin.confirm_game(game_id, game_details)
@@ -39,7 +39,7 @@ class GameAdmin:
 
     @staticmethod
     async def start_game(game_id: GameId):
-        game_details = await GameStatus.get_game(game_id)
+        game_details = await GameStatus.get(game_id)
 
         for player_id in game_details.confirmed_players:
             # TODO add to game status expire timer
@@ -79,7 +79,7 @@ class GameAdmin:
         # next queued game to see if all players are ready now
 
         # This needs to be done first before the game is deleted
-        game_details = await GameStatus.get_game(game_id)
+        game_details = await GameStatus.get(game_id)
 
         # Checks if after players were removed from the game if they are in another game that can start
         moved_up_games = await UserStatus.clear_game(
@@ -89,7 +89,7 @@ class GameAdmin:
         for moved_up_game in moved_up_games:
             await GameAdmin.start_game(moved_up_game)
 
-        await GameStatus.delete_game(game_id)
+        await GameStatus.delete(game_id)
         await GameData.delete_data(game_id)
 
     @staticmethod
@@ -97,7 +97,7 @@ class GameAdmin:
         # Clear all game data from redis
         # so update user status, remove game status, and game data
 
-        game_details = await GameStatus.get_game(game_id)
+        game_details = await GameStatus.get(game_id)
 
         # Clears external data
         if game_details.status > 1:
@@ -108,7 +108,7 @@ class GameAdmin:
                 game_details.confirmed_players + game_details.unconfirmed_players,
             )
         if game_details.status > -1:
-            await GameStatus.delete_game(game_id)
+            await GameStatus.delete(game_id)
 
         # Determines what message to send to players
         if game_details.status == 0:

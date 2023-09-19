@@ -79,7 +79,7 @@ class Game(commands.GroupCog, name="game"):
 
             # If there is only only one game then just send the game the interaction
             if len(user_notifications) == 1:
-                only_game_details = await GameStatus.get_game(user_notifications[0])
+                only_game_details = await GameStatus.get(user_notifications[0])
                 await UserStatus.remove_notification(
                     user_notifications[0], interaction.user.id
                 )
@@ -93,7 +93,7 @@ class Game(commands.GroupCog, name="game"):
 
             for game_id in user_notifications:
                 try:
-                    current_game_details = await GameStatus.get_game(game_id)
+                    current_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
                     await UserStatus.remove_notification(game_id, interaction.user.id)
                 else:
