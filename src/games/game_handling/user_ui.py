@@ -78,12 +78,6 @@ class GameConfirm(discord.ui.View):
         # Will delete interaction after 5 seconds
         # if interaction.message:
         #     await interaction.message.edit(delete_after=5)
-        game_details = await GameStatus.get(self.game_id)
-
-        for player_id in game_details.confirmed_players:
-            await bot.get_user(int(player_id)).send(
-                f"{interaction.user.name} has rejected the game of {game_details.game} the you accepted"
-            )
 
         await self.deny_func(self.game_id)
 

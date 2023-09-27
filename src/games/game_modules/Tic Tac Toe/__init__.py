@@ -33,11 +33,11 @@ class TicTacToe(Game):
         game_state = game_info.GameState
 
         game_data = TicTacToeData(
-            current_player=game_state.confirmed_players[0],
-            player_order=game_state.confirmed_players,
+            current_player=game_state.all_players[0],
+            player_order=game_state.all_players,
             player_square_type={
-                str(game_state.confirmed_players[0]): 1,
-                str(game_state.confirmed_players[1]): 2,
+                str(game_state.all_players[0]): 1,
+                str(game_state.all_players[1]): 2,
             },
             current_board=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         )

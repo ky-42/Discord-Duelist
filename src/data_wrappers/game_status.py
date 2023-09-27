@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, List, Literal, Mapping
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
 
-from data_types import GameId
+from data_types import GameId, UserId
 from exceptions.game_exceptions import ActiveGameNotFound
 from exceptions.general_exceptions import FuncExists, FuncNotFound, PlayerNotFound
 
@@ -65,8 +65,20 @@ class GameStatus:
         bet: int
         starting_player: int
         player_names: Mapping[str, str]
-        confirmed_players: List[int]
-        unconfirmed_players: List[int]
+        all_players: List[UserId]
+        unconfirmed_players: List[UserId]
+
+        def confirmed_players(self) -> List[UserId]:
+            """
+            Returns a list of all confirmed players
+            """
+
+            return list(
+                filter(
+                    lambda player_id: player_id not in self.unconfirmed_players,
+                    self.all_players,
+                )
+            )
 
     # Callbacks for when games expire
     __expire_callbacks: dict[str, Callable[[GameId, GameState], Awaitable[None]]] = {}
@@ -208,11 +220,10 @@ class GameStatus:
                 ".unconfirmed_players",
                 game_status.unconfirmed_players.index(player_id),
             )
-            pipe.json().arrappend(game_id, ".confirmed_players", player_id)
             pipe.json().get(game_id, ".unconfirmed_players")
             results = await pipe.execute()
 
-            return results[2]
+            return results[1]
 
         else:
             raise PlayerNotFound(player_id)

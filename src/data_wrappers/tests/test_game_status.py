@@ -17,7 +17,7 @@ test_state = GameStatus.GameState(
     bet=0,
     starting_player=1,
     player_names={"1": "player_one", "2": "player_two"},
-    confirmed_players=[1],
+    all_players=[1, 2],
     unconfirmed_players=[2],
 )
 
@@ -99,13 +99,16 @@ class TestGameStatus:
         new_state = GameStatus.GameState(**self.conn.json().get(test_game_id))
 
         assert (
-            new_state.confirmed_players == sample.confirmed_players + [random_player]
-            and new_state.confirmed_players != test_state.confirmed_players
+            new_state.all_players == sample.all_players
+            and new_state.unconfirmed_players != test_state.unconfirmed_players
         )
 
         sample.unconfirmed_players.remove(random_player)
 
-        assert remaining == sample.unconfirmed_players
+        assert (
+            remaining == sample.unconfirmed_players
+            and new_state.unconfirmed_players == sample.unconfirmed_players
+        )
 
     async def test_player_confirm_player_not_found(self):
         test_game_id = GameStatus._GameStatus__create_game_id()

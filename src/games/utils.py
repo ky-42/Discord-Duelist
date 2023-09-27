@@ -215,7 +215,7 @@ class Game(ABC):
         """
         game_state = game_info.GameState
 
-        for player in game_state.confirmed_players:
+        for player in game_state.all_players:
             if len(winner):
                 if player in winner:
                     await (await bot.get_user(player)).send(
@@ -224,7 +224,7 @@ class Game(ABC):
 
                 else:
                     await (await bot.get_user(player)).send(
-                        f"Game of {game_state.game} is over! The winner is {game_state.player_names[winner[0]]}!"
+                        f"Game of {game_state.game} is over! The winner is {game_state.player_names[str(winner[0])]}!"
                     )
             else:
                 await (await bot.get_user(player)).send(

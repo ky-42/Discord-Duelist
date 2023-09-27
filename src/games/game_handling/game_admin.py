@@ -25,7 +25,7 @@ class GameAdmin:
             bet=bet,
             starting_player=player_one,
             player_names=player_names,
-            confirmed_players=[player_one],
+            all_players=[player_one] + secondary_player_ids,
             unconfirmed_players=secondary_player_ids,
         )
 
@@ -41,7 +41,7 @@ class GameAdmin:
     async def start_game(game_id: GameId):
         game_details = await GameStatus.get(game_id)
 
-        for player_id in game_details.confirmed_players:
+        for player_id in game_details.all_players:
             # TODO add to game status expire timer
             # TODO check if game needs to be qued
 
@@ -49,10 +49,8 @@ class GameAdmin:
             # cause join game checks if user is already in game
             await UserStatus.join_game(player_id, game_id)
 
-        if await UserStatus.check_users_are_ready(
-            game_id, game_details.confirmed_players
-        ):
-            for player_id in game_details.confirmed_players:
+        if await UserStatus.check_users_are_ready(game_id, game_details.all_players):
+            for player_id in game_details.all_players:
                 # a = list(game_details.player_names.values())
 
                 # if player_id != game_details.starting_player:
@@ -82,9 +80,7 @@ class GameAdmin:
         game_details = await GameStatus.get(game_id)
 
         # Checks if after players were removed from the game if they are in another game that can start
-        moved_up_games = await UserStatus.clear_game(
-            game_id, game_details.confirmed_players
-        )
+        moved_up_games = await UserStatus.clear_game(game_id, game_details.all_players)
 
         for moved_up_game in moved_up_games:
             await GameAdmin.start_game(moved_up_game)
@@ -105,7 +101,7 @@ class GameAdmin:
         if game_details.status > 0:
             await UserStatus.clear_game(
                 game_id,
-                game_details.confirmed_players + game_details.unconfirmed_players,
+                game_details.all_players,
             )
         if game_details.status > -1:
             await GameStatus.delete(game_id)
@@ -117,7 +113,7 @@ class GameAdmin:
             cancel_message = f"Game of {game_details.game} has been cancelled"
 
         # Sends message to all players
-        for accepted_player_id in game_details.confirmed_players:
+        for accepted_player_id in game_details.confirmed_players():
             try:
                 await (await bot.get_dm_channel(accepted_player_id)).send(
                     cancel_message

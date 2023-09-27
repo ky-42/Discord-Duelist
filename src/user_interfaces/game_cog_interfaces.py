@@ -87,7 +87,7 @@ class GameReplySelect(ui.View):
         for game_id, game_data in user_notifications.items():
             names = [
                 game_data.player_names[str(player_id)]
-                for player_id in game_data.confirmed_players
+                for player_id in game_data.all_players
                 if player_id != interaction.user.id
             ]
 
