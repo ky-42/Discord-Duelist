@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def create_confirm_embed(
-    player_id: int, game_state: GameStatus.GameState, game_details: GameDetails
+    player_id: int, game_state: GameStatus.Game, game_details: GameDetails
 ) -> discord.Embed:
     message_embed = discord.Embed(
         title=f"{game_state.player_names[str(game_state.starting_player)]} wants to play a game!",

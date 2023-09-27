@@ -89,7 +89,7 @@ class Game(commands.GroupCog, name="game"):
                 return
 
             # For all notifications get the game data associated with it
-            game_details: Dict[GameId, GameStatus.GameState] = {}
+            game_details: Dict[GameId, GameStatus.Game] = {}
 
             for game_id in user_notifications:
                 try:

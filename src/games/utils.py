@@ -22,7 +22,7 @@ from data_wrappers.user_status import UserStatus
 from games.game_handling.game_admin import GameAdmin
 
 # Generics for the GameInfo class
-S = TypeVar("S", bound=GameStatus.GameState | None)
+S = TypeVar("S", bound=GameStatus.Game | None)
 D = TypeVar("D", bound=GameData.GameDataClass | None)
 
 
@@ -83,7 +83,7 @@ def get_game_info(
                 raise TypeError("Invalid annotation for game_info parameter")
 
             # Fetches state and data
-            fetched_state: GameStatus.GameState | None = None
+            fetched_state: GameStatus.Game | None = None
             fetched_game_data: GameData.GameDataClass | None = None
 
             if state_type != type(None):
@@ -121,7 +121,7 @@ class Game(ABC):
     Abstract class for defining a game
     """
 
-    GameState = GameStatus.GameState
+    GameState = GameStatus.Game
     GameDataClass = GameData.GameDataClass
 
     @staticmethod

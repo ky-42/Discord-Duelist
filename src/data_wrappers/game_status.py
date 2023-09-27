@@ -32,7 +32,7 @@ class GameStatus:
     __pool = redis_sync.Redis(db=__db_number)
 
     @dataclass
-    class GameState:
+    class Game:
         """
         Dataclass for game state
 
@@ -81,7 +81,7 @@ class GameStatus:
             )
 
     # Callbacks for when games expire
-    __expire_callbacks: dict[str, Callable[[GameId, GameState], Awaitable[None]]] = {}
+    __expire_callbacks: dict[str, Callable[[GameId, Game], Awaitable[None]]] = {}
     # Instance of pubsub task. Used to handle shadow key expire events
     __pubsub_task: asyncio.Task | None = None
 
@@ -138,7 +138,7 @@ class GameStatus:
             GameStatus.__pubsub_task = None
 
     @staticmethod
-    async def add(game_status: GameState, expire_time: timedelta) -> GameId:
+    async def add(game_status: Game, expire_time: timedelta) -> GameId:
         """
         Adds a game to the db
 
@@ -158,7 +158,7 @@ class GameStatus:
         return game_id
 
     @staticmethod
-    async def get(game_id: GameId) -> GameState:
+    async def get(game_id: GameId) -> Game:
         """
         Returns game data if game is found
 
@@ -166,7 +166,7 @@ class GameStatus:
         """
 
         if game_state := await GameStatus.__pool.json().get(game_id):
-            return GameStatus.GameState(**game_state)
+            return GameStatus.Game(**game_state)
         raise ActiveGameNotFound
 
     @staticmethod
@@ -211,7 +211,7 @@ class GameStatus:
         game_status = await GameStatus.get(game_id)
 
         if player_id in game_status.unconfirmed_players:
-            # Switch to buffered mode to make sure all commands
+            # Switch to buffered modweeke to make sure all commands
             # are executed without any external changes to the lists
             pipe.multi()
             # Moves player from unconfirmed to confirmed list
@@ -243,7 +243,7 @@ class GameStatus:
     @staticmethod
     @is_main_instance
     async def add_expire_handler(
-        game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
+        game_expire_callback: Callable[[GameId, Game], Awaitable[None]]
     ):
         """
         Adds a callback to be called when a game expires
@@ -301,7 +301,7 @@ class GameStatus:
     @staticmethod
     @is_main_instance
     async def remove_expire_handler(
-        game_expire_callback: Callable[[GameId, GameState], Awaitable[None]]
+        game_expire_callback: Callable[[GameId, Game], Awaitable[None]]
     ):
         """
         Removes a callback from the list of callbacks to be called when a key expires

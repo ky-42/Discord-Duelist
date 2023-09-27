@@ -73,7 +73,7 @@ class GameReplySelect(ui.View):
 
     def __init__(
         self,
-        user_notifications: Dict[GameId, GameStatus.GameState],
+        user_notifications: Dict[GameId, GameStatus.Game],
         interaction: discord.Interaction,
     ):
         super().__init__()

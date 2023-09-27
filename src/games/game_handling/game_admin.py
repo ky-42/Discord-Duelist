@@ -19,7 +19,7 @@ class GameAdmin:
         # Includes player one. Is in form {id: username}
         player_names: Mapping[str, str],
     ):
-        game_details = GameStatus.GameState(
+        game_details = GameStatus.Game(
             status=0,
             game=game_name,
             bet=bet,
@@ -122,13 +122,13 @@ class GameAdmin:
                 print("User not found while sending cancel game message")
 
     @staticmethod
-    async def confirm_game(game_id: GameId, game_state: GameStatus.GameState) -> None:
+    async def confirm_game(game_id: GameId, game_state: GameStatus.Game) -> None:
         for player_id in game_state.unconfirmed_players:
             await GameAdmin.send_confirm(player_id, game_id, game_state)
 
     @staticmethod
     async def send_confirm(
-        player_id: int, game_id: GameId, game_state: GameStatus.GameState
+        player_id: int, game_id: GameId, game_state: GameStatus.Game
     ) -> None:
         # Gets the dm channel of the player to send the confirmation over
         dm = await bot.get_dm_channel(player_id)
