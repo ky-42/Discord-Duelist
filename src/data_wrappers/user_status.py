@@ -98,10 +98,12 @@ class UserStatus:
         ):
             # If user is not in the game, add game to current_games or queued_games
             # depending on how many games the user is already in
+            pipe.multi()
             if len(current_status.current_games) >= UserStatus.__max_games:
-                await pipe.json().arrappend(str(user_id), ".queued_games", game_id)
+                pipe.json().arrappend(str(user_id), ".queued_games", game_id)
             else:
-                await pipe.json().arrappend(str(user_id), ".current_games", game_id)
+                pipe.json().arrappend(str(user_id), ".current_games", game_id)
+            await pipe.execute()
         else:
             print(f"User {user_id} is already in game {game_id}")
 
@@ -157,9 +159,10 @@ class UserStatus:
         for user in user_ids:
             try:
                 # Removes the game and stores the ids of the games that moved from queued_games to current_games
-                if move_up_id := await UserStatus.__remove_game(game_id, user):
-                    if move_up_id not in move_up_games:
-                        move_up_games.append(move_up_id)
+                if move_up_ids := await UserStatus.__remove_game(game_id, user):
+                    for move_up_id in move_up_ids:
+                        if move_up_id not in move_up_games:
+                            move_up_games.append(move_up_id)
 
             except ActiveGameNotFound:
                 print(f"User {user} was not in game {game_id}")
@@ -174,7 +177,7 @@ class UserStatus:
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
         user_id: UserId,
-    ) -> Optional[GameId]:
+    ) -> Optional[List[GameId]]:
         """
         Removes a game from a user's current_games or queued_games
 
@@ -186,51 +189,75 @@ class UserStatus:
         """
 
         # Makes sure user exists and gets their current status
-        if current_status := await pipe.json().get(user_id):
-            current_status = UserStatus.UserState(**current_status)
-
+        if current_status := await UserStatus.get_status(user_id):
             # If game is in current games or queued games and remove it
-            if game_id in current_status.current_games:
-                await pipe.json().arrpop(
-                    user_id,
-                    ".current_games",
-                    current_status.current_games.index(game_id),
-                )
-
-                if (
-                    len(current_status.current_games) <= UserStatus.__max_games
-                    and len(current_status.queued_games) > 0
-                ):
-                    # Moves games from queued_games to current_games if there is room
-                    # TODO maybe make this use pubsub so that its not on the calling function
-                    # to check if the moved up game is ready cause GameAdmin could just link to this
-                    move_up_game = await pipe.json().arrpop(user_id, ".queued_games")
-
-                    await pipe.json().arrappend(user_id, ".current_games", move_up_game)
-
-                    return move_up_game
-
-            elif game_id in current_status.queued_games:
-                await pipe.json().arrpop(
-                    str(user_id),
-                    ".queued_games",
-                    current_status.queued_games.index(game_id),
-                )
-            else:
+            if (
+                game_id not in current_status.current_games
+                and game_id not in current_status.queued_games
+            ):
                 raise ActiveGameNotFound(game_id)
 
+            game_type = (
+                "current_games"
+                if game_id in current_status.current_games
+                else "queued_games"
+            )
+
+            if game_type == "current_games":
+                game_index = current_status.current_games.index(game_id)
+            else:
+                game_index = current_status.queued_games.index(game_id)
+
+            deleted = False
+
+            pipe.multi()
+            pipe.json().arrpop(str(user_id), f".{game_type}", game_index)
             if (
+                # Its == 1 because this uses outdated data from before we delete one
                 len(current_status.current_games) + len(current_status.queued_games)
                 == 1
             ):
                 # If the user is not in any games, delete them from the db
-                # This works cause to make it this far in the function, the game must have been removed
-                # and if there was only one before there are none left
-                await pipe.json().delete(user_id)
-                return None
+                deleted = True
+                pipe.json().delete(user_id)
+            await pipe.execute()
+
+            if not deleted:
+                # If the user is still in the db, move up a game from queued_games to current_games
+                return await UserStatus.move_up_games(user_id)
 
         else:
             raise PlayerNotFound(user_id)
+
+    @staticmethod
+    @pipeline_watch(__pool, "user_id")
+    async def move_up_games(
+        pipe: redis_async_client.Pipeline, user_id: UserId
+    ) -> List[GameId]:
+        # Moves games from queued_games to current_games if there is room
+        # TODO maybe make this use pubsub so that its not on the calling function
+        # to check if the moved up game is ready cause GameAdmin could just link to this
+        moved_games = []
+
+        flag = True
+        while flag:
+            if current_status := await UserStatus.get_status(user_id):
+                if (
+                    len(current_status.current_games) < UserStatus.__max_games
+                    and len(current_status.queued_games) > 0
+                ):
+                    pipe.multi()
+                    pipe.json().arrpop(str(user_id), ".queued_games")
+                    pipe.json().arrappend(
+                        str(user_id), ".current_games", current_status.queued_games[-1]
+                    )
+                    moved_games.append((await pipe.execute())[0])
+                else:
+                    flag = False
+            else:
+                raise PlayerNotFound(user_id)
+
+        return moved_games
 
     @staticmethod
     @pipeline_watch(__pool, "user_id")
@@ -241,8 +268,17 @@ class UserStatus:
         Adds a game to a user's notifications
         """
 
-        if await pipe.json().arrindex(str(user_id), ".notifications", game_id) == -1:
-            await pipe.json().arrappend(str(user_id), ".notifications", game_id)
+        if user_status := await UserStatus.get_status(user_id):
+            # Makes sure there are no duplicates
+            if game_id not in user_status.notifications:
+                pipe.multi()
+                pipe.json().arrappend(
+                    str(user_id),
+                    ".notifications",
+                )
+                await pipe.execute()
+        else:
+            raise PlayerNotFound(user_id)
 
     @staticmethod
     async def amount_of_notifications(user_id: UserId) -> int:
@@ -262,12 +298,17 @@ class UserStatus:
         """
         Removes a game from a user's notifications
         """
-
-        await pipe.json().arrpop(
-            str(user_id),
-            ".notifications",
-            await pipe.json().arrindex(user_id, ".notifications", game_id),
-        )
+        if user_status := await UserStatus.get_status(user_id):
+            if game_id in user_status.notifications:
+                pipe.multi()
+                pipe.json().arrpop(
+                    str(user_id),
+                    ".notifications",
+                    user_status.notifications.index(game_id),
+                )
+                await pipe.execute()
+        else:
+            raise PlayerNotFound(user_id)
 
     @staticmethod
     async def set_notification_id(user_id: UserId, message_id: MessageId) -> None:

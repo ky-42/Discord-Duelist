@@ -60,10 +60,10 @@ class GameStatus:
             List of player ids who have not yet agreed to play the game
         """
 
-        status: int
+        status: Literal[0, 1, 2]
         game: str
         bet: int
-        starting_player: Literal[0, 1, 2]
+        starting_player: int
         player_names: Mapping[str, str]
         confirmed_players: List[int]
         unconfirmed_players: List[int]
@@ -196,18 +196,17 @@ class GameStatus:
         Returns updated unconfirmed_players list
         """
 
-        # Make sure player is in the unconfirmed list
-        if (
-            unconfirmed_player_index := await pipe.json().arrindex(
-                game_id, ".unconfirmed_players", player_id
-            )
-        ) > -1:
+        game_status = await GameStatus.get(game_id)
+
+        if player_id in game_status.unconfirmed_players:
             # Switch to buffered mode to make sure all commands
             # are executed without any external changes to the lists
             pipe.multi()
             # Moves player from unconfirmed to confirmed list
             pipe.json().arrpop(
-                game_id, ".unconfirmed_players", unconfirmed_player_index
+                game_id,
+                ".unconfirmed_players",
+                game_status.unconfirmed_players.index(player_id),
             )
             pipe.json().arrappend(game_id, ".confirmed_players", player_id)
             pipe.json().get(game_id, ".unconfirmed_players")

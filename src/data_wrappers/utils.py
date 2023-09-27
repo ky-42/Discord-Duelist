@@ -17,6 +17,7 @@ def pipeline_watch(
     redis_pool: redis_sync.Redis,
     watch_param_name: str,
     key_not_found_excepton: Type[Exception] = ValueError,
+    max_retries: int = 5,
 ):
     """
     Decorator for setting a watch and pipeline on some data.
@@ -24,6 +25,11 @@ def pipeline_watch(
     IMPORTANT: To use this decorator the wrapped function must
     be asyncronous and accept an asyncronous redis pipeline as
     its first parameter
+
+    When using the pipe if you do not call the execute() method
+    there is no possibility of a watch error. Meaning to make sure
+    data is not changed while you are operating on it you must
+    call the execute() method on the pipeline.
 
     Parameters:
         redis_pool[redis_sync.Redis]:
@@ -34,6 +40,9 @@ def pipeline_watch(
 
         key_not_found_excepton[Optional[Exception]]:
             Exception to raise if key to watch is not found
+
+        max_retries[int]:
+            Amount of times the function will retry if a watch error occurs
     """
 
     def decorator(
@@ -53,19 +62,24 @@ def pipeline_watch(
                 watch_data = func_params.arguments[watch_param_name]
 
                 async with redis_pool.pipeline() as pipe:
-                    await pipe.watch(watch_data)
                     # Make sure game exists while operating on it
                     # and reruns function till it completes without a watch error
-                    while await pipe.exists(watch_data):
-                        try:
-                            return await fn(pipe, *args, **kwargs)
-                        except redis.WatchError:
-                            continue
+                    while await redis_pool.exists(watch_data):
+                        nonlocal max_retries
+
+                        await pipe.watch(watch_data)
+                        if max_retries > -1:
+                            try:
+                                return await fn(pipe, *args, **kwargs)
+                            except redis.WatchError:
+                                max_retries -= 1
+                                continue
+                        else:
+                            raise redis.WatchError("Max retries reached")
 
                     raise key_not_found_excepton(
                         f"key {watch_param_name} not found in db"
                     )
-
             else:
                 raise TypeError("Missing required parameter: " + watch_param_name)
 
@@ -75,6 +89,14 @@ def pipeline_watch(
 
 
 def is_main_instance(fn):
+    """
+    Checks the MAIN_INSTANCE environment variable to see if
+    this instance of the bot is the main one.
+
+    If True the wrapped function will run
+    If False the wrapped function will not run
+    """
+
     needs_await: bool = inspect.iscoroutinefunction(fn)
 
     async def async_wrapper(*args, **kwargs):
