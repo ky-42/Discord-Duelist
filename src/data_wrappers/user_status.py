@@ -31,7 +31,7 @@ class UserStatus:
     class User:
         current_games: List[GameId]
         queued_games: List[GameId]
-        notifications: List[GameId] = []
+        notifications: List[GameId]
         notification_id: Optional[MessageId] = None
 
     @staticmethod
