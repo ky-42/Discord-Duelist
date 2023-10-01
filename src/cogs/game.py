@@ -74,7 +74,7 @@ class Game(commands.GroupCog, name="game"):
         just send the interaction to the game class (or skip the select part if they
         are only in one game).
         """
-        if user_status := await UserStatus.get_status(interaction.user.id):
+        if user_status := await UserStatus.get(interaction.user.id):
             user_notifications = user_status.notifications
 
             # If there is only only one game then just send the game the interaction

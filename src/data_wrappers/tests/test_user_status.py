@@ -8,17 +8,17 @@ from exceptions.game_exceptions import ActiveGameNotFound
 
 from . import UserStatus
 
-test_state_current_game = UserStatus.UserState(
+test_state_current_game = UserStatus.User(
     current_games=["test_game_id"], queued_games=[], notifications=[]
 )
 
-test_state_queued_games = UserStatus.UserState(
+test_state_queued_games = UserStatus.User(
     current_games=["test_game_id", "a", "b", "c", "d", "e"],
     queued_games=["test_game_id_2"],
     notifications=[],
 )
 
-test_state_queued_game_first_id = UserStatus.UserState(
+test_state_queued_game_first_id = UserStatus.User(
     current_games=["test_game_id_wrong", "a", "b", "c", "d", "e"],
     queued_games=["test_game_id"],
     notifications=[],
@@ -46,7 +46,7 @@ class TestUserStatus:
 
         self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
 
-        result = await UserStatus.get_status(user_id)
+        result = await UserStatus.get(user_id)
 
         assert result == test_state_queued_games
 
@@ -56,33 +56,11 @@ class TestUserStatus:
         """
         user_id = randint(1, 100000)
 
-        result = await UserStatus.get_status(user_id)
+        result = await UserStatus.get(user_id)
 
         assert result is None
 
-    async def test_check_in_game_existing_user(self):
-        """
-        Tests if check_in_game returns the current game for an existing user
-        """
-        user_id = randint(1, 100000)
-
-        self.conn.json().set(user_id, ".", asdict(test_state_current_game))
-
-        result = await UserStatus.check_in_games(user_id, 1)
-
-        assert result == True
-
-    async def test_check_in_game_nonexistent_user(self):
-        """
-        Tests if check_in_game returns None for a nonexistent user
-        """
-        user_id = randint(1, 10000)
-
-        result = await UserStatus.check_in_games(user_id)
-
-        assert result == False
-
-    async def test_join_game_existing_user(self):
+    async def test_join_game_full_user(self):
         """
         Tests if join_game adds a game to the queued_games list for an existing user
         """
@@ -96,7 +74,7 @@ class TestUserStatus:
 
         result = self.conn.json().get(user_id)
 
-        result = UserStatus.UserState(**result)
+        result = UserStatus.User(**result)
 
         assert result.queued_games == test_state_queued_games.queued_games + [game_id]
         assert result.current_games == test_state_queued_games.current_games
@@ -113,7 +91,7 @@ class TestUserStatus:
 
         result = self.conn.json().get(user_id)
 
-        expected_user_state = UserStatus.UserState(
+        expected_user_state = UserStatus.User(
             current_games=["test_game_id_0"], queued_games=[], notifications=[]
         )
 
@@ -125,7 +103,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         for user_id in user_ids:
-            user_state = UserStatus.UserState(
+            user_state = UserStatus.User(
                 current_games=["test_game_id_0"], queued_games=[], notifications=[]
             )
             self.conn.json().set(user_id, ".", asdict(user_state))
@@ -142,7 +120,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(
+        user_state = UserStatus.User(
             current_games=["test_game_id"], queued_games=[], notifications=[]
         )
         self.conn.json().set(user_ids[1], ".", asdict(user_state))
@@ -158,7 +136,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(
+        user_state = UserStatus.User(
             current_games=[], queued_games=[], notifications=[]
         )
         self.conn.json().set(user_ids[1], ".", asdict(user_state))
@@ -173,7 +151,7 @@ class TestUserStatus:
         """
         user_ids = [randint(1, 10000), randint(1, 10000), randint(1, 10000)]
         self.conn.json().set(user_ids[0], ".", asdict(test_state_current_game))
-        user_state = UserStatus.UserState(
+        user_state = UserStatus.User(
             current_games=[], queued_games=[], notifications=[]
         )
         self.conn.json().set(user_ids[2], ".", asdict(test_state_current_game))
@@ -196,7 +174,7 @@ class TestUserStatus:
 
         assert self.conn.json().get(user_ids[0]) == None
 
-        result = UserStatus.UserState(**self.conn.json().get(user_ids[1]))
+        result = UserStatus.User(**self.conn.json().get(user_ids[1]))
         assert result.queued_games == []
         assert result.current_games[0] == "test_game_id_wrong"
 
@@ -222,7 +200,7 @@ class TestUserStatus:
 
         await UserStatus._UserStatus__remove_game("test_game_id", user_id)
 
-        result = UserStatus.UserState(**self.conn.json().get(user_id))
+        result = UserStatus.User(**self.conn.json().get(user_id))
         assert result.current_games[-1] == test_state_queued_games.queued_games[0]
 
     async def test_remove_game_existing_user_queued_game(self):
@@ -235,7 +213,7 @@ class TestUserStatus:
 
         await UserStatus._UserStatus__remove_game("test_game_id_2", user_id)
 
-        result = UserStatus.UserState(**self.conn.json().get(user_id))
+        result = UserStatus.User(**self.conn.json().get(user_id))
 
         assert result.queued_games == []
         assert result.current_games == test_state_queued_games.current_games
