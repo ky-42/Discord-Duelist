@@ -8,7 +8,7 @@ from discord.ext import commands
 from bot import Bot
 from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
-from exceptions.game_exceptions import GameNotFound
+from exceptions import GameNotFound
 from games.game_handling.game_loading import GameLoading
 from user_interfaces.game_cog_interfaces import GameReplySelect, GetPlayersClassInner
 

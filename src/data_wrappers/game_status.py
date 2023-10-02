@@ -9,8 +9,7 @@ import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
 
 from data_types import GameId, UserId
-from exceptions.game_exceptions import ActiveGameNotFound
-from exceptions.general_exceptions import FuncExists, FuncNotFound, PlayerNotFound
+from exceptions import GameNotFound, PlayerNotFound
 
 from .utils import is_main_instance, pipeline_watch
 
@@ -167,7 +166,7 @@ class GameStatus:
 
         if game_state := await GameStatus.__pool.json().get(game_id):
             return GameStatus.Game(**game_state)
-        raise ActiveGameNotFound
+        raise GameNotFound(game_id)
 
     @staticmethod
     async def set_expiry(game_id: GameId, extend_time: timedelta):
@@ -192,7 +191,7 @@ class GameStatus:
         await GameStatus.__pool.json().set(game_id, ".status", 2)
 
     @staticmethod
-    @pipeline_watch(__pool, "game_id", ActiveGameNotFound)
+    @pipeline_watch(__pool, "game_id", GameNotFound)
     async def confirm_player(
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
@@ -255,8 +254,6 @@ class GameStatus:
             The passed function must accept the GameId of the expired game
             as its first parameter and the GameState of the expired game as
             its second parameter. It must also be asyncronous and return nothing
-
-        Raises FuncExists if a function with the same name has already been added
         """
 
         if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
@@ -264,7 +261,7 @@ class GameStatus:
             GameStatus.__expire_callbacks[name] = game_expire_callback
 
         else:
-            raise FuncExists(name)
+            raise ValueError("Callback of same name already exists")
 
     @staticmethod
     @is_main_instance
@@ -282,9 +279,7 @@ class GameStatus:
         try:
             msg = msg["data"].decode("utf-8")
         except AttributeError:
-            raise Exception("Message not in utf-8 format")
-        except:
-            raise Exception("Unknown error")
+            raise ValueError("Message not in utf-8 format")
         else:
             # Checks if message is a shadow key
             if msg.startswith(GameStatus.__get_shadow_key("")):
@@ -305,12 +300,10 @@ class GameStatus:
     ):
         """
         Removes a callback from the list of callbacks to be called when a key expires
-
-        Raises FuncNotFound if function is not found
         """
 
         if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
-            raise FuncNotFound(name)
+            raise KeyError("Callback with that name not found")
 
         else:
             del GameStatus.__expire_callbacks[name]

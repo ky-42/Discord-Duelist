@@ -4,7 +4,7 @@ from typing import List
 import redis.asyncio as redis_sync
 
 from data_types import GameId
-from exceptions.game_exceptions import ActiveGameNotFound
+from exceptions import GameNotFound
 
 
 class ConfirmMessages:
@@ -31,7 +31,7 @@ class ConfirmMessages:
         a = await ConfirmMessages.__pool.get(game_id)
         if a is not None:
             return [int(message_id) for message_id in a]
-        raise ActiveGameNotFound(game_id)
+        raise GameNotFound(f"Game {game_id} not found")
 
     @staticmethod
     async def delete_messages(game_id: GameId):

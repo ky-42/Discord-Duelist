@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Tuple, Type
 
 from dotenv import load_dotenv
 
-from exceptions.game_exceptions import GameNotFound, NoLoadFunction
+import exceptions
 
 # Stops circular import
 if TYPE_CHECKING:
@@ -59,6 +59,8 @@ class GameLoading:
         """
         Loads the game module if it isnt loaded already and returns the details
         Each moduel should have a details attribute which is a GameInfo object at the top level
+
+        Raises a KeyError if the game is not found
         """
 
         try:
@@ -71,13 +73,15 @@ class GameLoading:
             return GameLoading.__load_game(game_name)
 
         except ModuleNotFoundError:
-            raise GameNotFound(game_name)
+            raise KeyError(f"{game_name} is not a game")
 
     @staticmethod
     def __load_game(game_name: str) -> Type[Game]:
         """
         Loads a game module and gets the game class from it. It then
         adds the module to the loaded games dict and returns the game class
+
+        Raises a NotGame error if the module does not have a load function
         """
 
         # Watch out any errors initalizing this are caught by the caller
@@ -89,7 +93,9 @@ class GameLoading:
             game: Type[Game] = game_module.load()
 
         except AttributeError:
-            raise NoLoadFunction(game_name)
+            raise AttributeError(
+                f"Game module of name {game_name} does not have a load function"
+            )
 
         else:
             # Store the module in the loaded games dict and returns game class

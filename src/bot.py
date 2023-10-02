@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 
 from data_wrappers.game_status import GameStatus
-from exceptions.general_exceptions import PlayerNotFound
+from exceptions import PlayerNotFound
 
 """
 This file functions as a place to store the global bot var

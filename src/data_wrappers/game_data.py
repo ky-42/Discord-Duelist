@@ -4,7 +4,7 @@ from typing import Type, TypeVar
 import redis.asyncio as redis
 
 from data_types import GameId
-from exceptions.game_exceptions import ActiveGameNotFound
+from exceptions import GameNotFound
 
 
 class GameData:
@@ -33,7 +33,7 @@ class GameData:
     async def retrive_data(game_id: GameId, data_class: Type[GDC]):
         if game_state := await GameData.__pool.json().get(game_id):
             return data_class(**game_state)
-        raise ActiveGameNotFound
+        raise GameNotFound(f"Game {game_id} not found")
 
     @staticmethod
     async def store_data(game_id: GameId, data: Type[GDC]):

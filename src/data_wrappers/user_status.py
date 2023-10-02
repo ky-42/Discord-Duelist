@@ -5,8 +5,7 @@ import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
 
 from data_types import GameId, MessageId, UserId
-from exceptions.game_exceptions import ActiveGameNotFound
-from exceptions.general_exceptions import PlayerNotFound
+from exceptions import GameNotFound, PlayerNotFound
 
 from .utils import pipeline_watch
 
@@ -161,7 +160,7 @@ class UserStatus:
                         if move_up_id not in moved_up_games:
                             moved_up_games.append(move_up_id)
 
-            except ActiveGameNotFound:
+            except GameNotFound:
                 print(f"User {user} was not in game {game_id}")
             except PlayerNotFound:
                 print(f"User {user} was not found")
@@ -191,7 +190,7 @@ class UserStatus:
             game_id not in user_status.current_games
             and game_id not in user_status.queued_games
         ):
-            raise ActiveGameNotFound(game_id)
+            raise GameNotFound(f"{game_id} not found in user {user_id}'s games")
 
         game_type, game_index = (
             ("current_games", user_status.current_games.index(game_id))
