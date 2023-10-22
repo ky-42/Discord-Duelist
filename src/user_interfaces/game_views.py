@@ -123,7 +123,7 @@ class GameReplySelect(ui.View):
     ):
         super().__init__()
 
-        self.reject_func = reply_func
+        self.reply_func = reply_func
 
         self.game_dropdown = ui.Select(
             max_values=1, placeholder="Select a game to reply to"
@@ -151,7 +151,7 @@ class GameReplySelect(ui.View):
     @ui.button(label="Reply", style=discord.ButtonStyle.primary, row=1)
     async def confirm(self, interaction: discord.Interaction, _: ui.Button):
         if len(self.game_dropdown.values) > 0:
-            game_reply = await self.reject_func(
+            game_reply = await self.reply_func(
                 self.game_dropdown.values[0], interaction.user.id
             )
             await interaction.response.send_message(**game_reply.for_send())
