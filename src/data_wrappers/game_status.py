@@ -3,7 +3,7 @@ import random
 import string
 from dataclasses import asdict, dataclass
 from datetime import timedelta
-from typing import Awaitable, Callable, List, Literal, Mapping
+from typing import Awaitable, Callable, Dict, List, Literal, Mapping
 
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
@@ -63,7 +63,7 @@ class GameStatus:
         game: str
         bet: int
         starting_player: int
-        player_names: Mapping[str, str]
+        player_names: Dict[str, str]
         all_players: List[UserId]
         unconfirmed_players: List[UserId]
 

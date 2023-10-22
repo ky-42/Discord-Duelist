@@ -3,7 +3,7 @@ from typing import Type
 
 import discord
 
-from data_types import GameId
+from data_types import DiscordMessage, GameId, UserId
 from games.utils import Game, GameDetails, GameInfo, get_game_info
 
 from .data import TicTacToeData
@@ -52,16 +52,17 @@ class TicTacToe(Game):
     async def reply(
         game_info: GameInfo[Game.GameState, TicTacToeData],
         game_id: GameId,
-        interaction: discord.Interaction,
+        user_id: UserId,
     ):
         game_data = game_info.GameData
 
-        if game_data.current_player == interaction.user.id:
-            await interaction.response.send_message(
+        if game_data.current_player == user_id:
+            return DiscordMessage(
                 content="Press a button to play your move!",
-                delete_after=60 * 15,
                 view=TicTacToeView(game_id, game_data, TicTacToe.play_move),
             )
+        else:
+            return DiscordMessage(content="It's not your turn!")
 
     @staticmethod
     @get_game_info

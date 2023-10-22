@@ -13,10 +13,8 @@ from typing import (
     get_args,
 )
 
-import discord
-
 from bot import bot
-from data_types import GameId, UserId
+from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus
 from data_wrappers.user_status import UserStatus
 from games.game_handling.game_admin import GameAdmin
@@ -148,10 +146,8 @@ class Game(ABC):
     @abstractmethod
     @get_game_info
     async def reply(
-        game_info: GameInfo[GameState, GameDataClass],
-        game_id: GameId,
-        interaction: discord.Interaction,
-    ) -> None:
+        game_info: GameInfo[GameState, GameDataClass], game_id: GameId, user_id: UserId
+    ) -> DiscordMessage:
         """
         Used to play a move in a game
 

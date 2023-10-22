@@ -272,10 +272,7 @@ class UserStatus:
         # Makes sure there are no duplicates
         if game_id not in user_status.notifications:
             pipe.multi()
-            pipe.json().arrappend(
-                str(user_id),
-                ".notifications",
-            )
+            pipe.json().arrappend(str(user_id), ".notifications", game_id)
             await pipe.execute()
 
     @staticmethod

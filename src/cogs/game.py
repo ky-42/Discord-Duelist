@@ -1,16 +1,18 @@
+import functools
 from datetime import timedelta
 from typing import Dict, List
 
 import discord
-from discord import app_commands, ui
+from discord import app_commands
 from discord.ext import commands
 
 from bot import Bot
 from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
 from exceptions import GameNotFound
+from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_loading import GameLoading
-from user_interfaces.game_cog_interfaces import GameReplySelect, GetPlayersClassInner
+from user_interfaces.game_views import GameReplySelect, GetPlayers
 
 
 class Game(commands.GroupCog, name="game"):
@@ -26,25 +28,35 @@ class Game(commands.GroupCog, name="game"):
         """
         Starts the process of creating a game
         """
-        try:
-            game_details = GameLoading.get_game(game_name).get_details()
 
-            # Sends out UI to select players this is done to avoid the users
-            # having to type out the names in inital interaction
-            # instead they can just select the users from a dropdown menu
-            return await interaction.response.send_message(
-                content="Please select the players you want to play with",
-                ephemeral=True,
-                view=GetPlayersClassInner(
-                    game_name=game_name,
-                    max=game_details.max_players,
-                    min=game_details.min_players,
-                ),
-                delete_after=timedelta(minutes=5).total_seconds(),
-            )
+        game_object = GameStatus.Game(
+            status=0,
+            game=game_name,
+            bet=0,
+            starting_player=interaction.user.id,
+            player_names={str(interaction.user.id): interaction.user.name},
+            all_players=[interaction.user.id],
+            unconfirmed_players=[],
+        )
 
-        except Exception as e:
-            return await interaction.response.send_message(e)
+        game_details = GameLoading.get_game(game_name).get_details()
+
+        # Sends out UI to select players this is done to avoid the users
+        # having to type out the names in inital interaction
+        # instead they can just select the users from a dropdown menu
+        return await interaction.response.send_message(
+            content="Please select the players you want to play with",
+            ephemeral=True,
+            view=GetPlayers(
+                game_details.min_players,
+                game_details.max_players,
+                interaction.user.id,
+                # Partial is used to pass the game object to the callback letting
+                # the ui be decoupled from the game object
+                functools.partial(GameAdmin.players_selected, game_object),
+            ),
+            delete_after=timedelta(minutes=5).total_seconds(),
+        )
 
     @play.autocomplete("game_name")
     async def play_autocomplete(
@@ -66,6 +78,12 @@ class Game(commands.GroupCog, name="game"):
             for game_name in partial_matches[: max(len(partial_matches), 25)]
         ]
 
+    @play.error
+    async def play_error(
+        self, interaction: discord.Interaction, error: Exception
+    ) -> None:
+        pass
+
     @app_commands.command(name="reply")
     async def reply(self, interaction: discord.Interaction):
         """
@@ -74,23 +92,19 @@ class Game(commands.GroupCog, name="game"):
         just send the interaction to the game class (or skip the select part if they
         are only in one game).
         """
+
         if user_status := await UserStatus.get(interaction.user.id):
             user_notifications = user_status.notifications
 
             # If there is only only one game then just send the game the interaction
             if len(user_notifications) == 1:
-                only_game_details = await GameStatus.get(user_notifications[0])
-                await UserStatus.remove_notification(
+                game_reply = await GameAdmin.reply(
                     user_notifications[0], interaction.user.id
                 )
-                await GameLoading.get_game(only_game_details.game).reply(
-                    user_notifications[0], interaction
-                )
-                return
+                return await interaction.response.send_message(**game_reply.for_send())
 
-            # For all notifications get the game data associated with it
+            # Gets the game details associated with the notifications
             game_details: Dict[GameId, GameStatus.Game] = {}
-
             for game_id in user_notifications:
                 try:
                     current_game_details = await GameStatus.get(game_id)
@@ -105,8 +119,14 @@ class Game(commands.GroupCog, name="game"):
                 return await interaction.response.send_message(
                     content="Please select the game you want to play",
                     ephemeral=True,
-                    view=GameReplySelect(game_details, interaction),
+                    view=GameReplySelect(
+                        interaction.user.id, game_details, GameAdmin.reply
+                    ),
                 )
+
+        return await interaction.response.send_message(
+            content="You have no games to reply to", ephemeral=True
+        )
 
     # @app_commands.command(name="queue")
     # async def queue(self, interaction: discord.Interaction) -> None:

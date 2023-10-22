@@ -1,3 +1,4 @@
+import asyncio
 from typing import Awaitable, Callable
 
 import discord
@@ -57,7 +58,7 @@ class TicTacToeView(discord.ui.View):
             [GameId, int, int, discord.Interaction], Awaitable[None]
         ],
     ):
-        super().__init__(timeout=None)
+        super().__init__()
         self.game_id = game_id
         self.game_data = game_data
         self.pressed_callback = pressed_callback
@@ -91,12 +92,20 @@ class TicTacToeView(discord.ui.View):
                 button.style = discord.ButtonStyle.danger
                 button.label = "x"
 
+            # Disables buttons and stops the view
+            for item in self.children:
+                if item is discord.Button:
+                    item.disabled = True
+            self.stop()
+
             await interaction.response.edit_message(view=self)
 
-            if interaction.message:
-                await interaction.message.edit(delete_after=5)
-
             await self.pressed_callback(self.game_id, row, column, interaction)
+
+            # Deletes ui 5 seconds after playing move
+            if interaction.message:
+                await asyncio.sleep(5)
+                await interaction.followup.delete_message(interaction.message.id)
         else:
             # Ignore the button press not by the current player
             await interaction.response.defer()

@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 import redis
 
-from . import GameStatus
+from data_wrappers import GameStatus
 
 db_number = GameStatus._GameStatus__db_number  # type: ignore
 

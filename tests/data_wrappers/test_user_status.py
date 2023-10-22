@@ -4,9 +4,8 @@ from random import randint
 import pytest
 import redis
 
-from exceptions.game_exceptions import ActiveGameNotFound
-
-from . import UserStatus
+from data_wrappers import UserStatus
+from exceptions import GameNotFound, PlayerNotFound
 
 test_state_current_game = UserStatus.User(
     current_games=["test_game_id"], queued_games=[], notifications=[]
@@ -156,9 +155,8 @@ class TestUserStatus:
         )
         self.conn.json().set(user_ids[2], ".", asdict(test_state_current_game))
 
-        result = await UserStatus.check_users_are_ready("test_game_id", user_ids)
-
-        assert result is True
+        with pytest.raises(PlayerNotFound):
+            await UserStatus.check_users_are_ready("test_game_id", user_ids)
 
     async def test_clear_game(self):
         """
@@ -226,7 +224,7 @@ class TestUserStatus:
         user_id = randint(1, 10000)
         self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
 
-        with pytest.raises(ActiveGameNotFound):
+        with pytest.raises(GameNotFound):
             await UserStatus._UserStatus__remove_game("abc", user_id)
 
     async def test_remove_game_nonexistent_user(self):

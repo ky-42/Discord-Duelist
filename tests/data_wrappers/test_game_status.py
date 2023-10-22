@@ -6,10 +6,8 @@ from datetime import timedelta
 import pytest
 import redis
 
-from exceptions.game_exceptions import ActiveGameNotFound
-from exceptions.general_exceptions import PlayerNotFound
-
-from . import GameStatus
+from data_wrappers import GameStatus
+from exceptions import GameNotFound, PlayerNotFound
 
 test_state = GameStatus.Game(
     status=0,
@@ -56,7 +54,7 @@ class TestGameStatus:
         assert got_data == test_state
 
     async def test_unsuccessful_get(self):
-        with pytest.raises(ActiveGameNotFound):
+        with pytest.raises(GameNotFound):
             await GameStatus.get("wrong")
 
     async def test_set_expire(self):
@@ -118,7 +116,7 @@ class TestGameStatus:
             await GameStatus.confirm_player(game_id=test_game_id, player_id=4)
 
     async def test_player_game_not_found(self):
-        with pytest.raises(ActiveGameNotFound):
+        with pytest.raises(GameNotFound):
             await GameStatus.confirm_player(game_id="test", player_id=2)
 
     async def test_shadowkey_timeout(self):
@@ -140,11 +138,11 @@ class TestGameStatus:
 
         await GameStatus.add_expire_handler(shadowkey_callback)
 
-        test_game_id = await GameStatus.add(test_state, timedelta(seconds=4))
+        test_game_id = await GameStatus.add(test_state, timedelta(seconds=1))
 
         assert GameStatus.Game(**self.conn.json().get(test_game_id)) == test_state
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(2)
 
         assert callback_ran
 

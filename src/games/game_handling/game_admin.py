@@ -1,41 +1,63 @@
-from typing import List, Mapping
+import functools
 
 from bot import bot
-from data_types import GameId
+from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus, UserStatus
+from user_interfaces.game_embeds import create_confirm_embed
+from user_interfaces.game_views import GameConfirm
 
 from .game_loading import GameLoading
-from .user_ui import GameConfirm, create_confirm_embed
 
 
 class GameAdmin:
     @staticmethod
-    async def initialize_game(
-        game_name: str,
-        bet: int,
-        player_one: int,
-        # Does not include player one id
-        secondary_player_ids: List[int],
-        # Includes player one. Is in form {id: username}
-        player_names: Mapping[str, str],
-    ):
-        game_details = GameStatus.Game(
-            status=0,
-            game=game_name,
-            bet=bet,
-            starting_player=player_one,
-            player_names=player_names,
-            all_players=[player_one] + secondary_player_ids,
-            unconfirmed_players=secondary_player_ids,
+    async def players_selected(game_details: GameStatus.Game, players: dict[str, str]):
+        # Add 1 to the player count to include the player who started the game
+        if GameLoading.check_game_details(game_details.game, len(players) + 1):
+            for player_id, player_name in players.items():
+                game_details.player_names[player_id] = player_name
+                game_details.all_players.append(int(player_id))
+                game_details.unconfirmed_players.append(int(player_id))
+
+            # Adds game to game status store
+            game_id = await GameStatus.add(game_details, bot.game_requested_expiry)
+
+            # Sends out confirmations to secondary players
+            await GameAdmin.confirm_game(game_id, game_details)
+        else:
+            raise ValueError("Invalid game details")
+
+    @staticmethod
+    async def confirm_game(game_id: GameId, game_state: GameStatus.Game) -> None:
+        for player_id in game_state.unconfirmed_players:
+            await GameAdmin.send_confirm(player_id, game_id, game_state)
+
+    @staticmethod
+    async def send_confirm(
+        player_id: int, game_id: GameId, game_state: GameStatus.Game
+    ) -> None:
+        # Gets the dm channel of the player to send the confirmation over
+        dm = await bot.get_dm_channel(player_id)
+
+        await dm.send(
+            embed=create_confirm_embed(
+                player_id,
+                game_state,
+                GameLoading.get_game(game_state.game).get_details(),
+            ),
+            view=GameConfirm(
+                functools.partial(GameAdmin.player_confirm, game_id, player_id),
+                functools.partial(GameAdmin.cancel_game, game_id),
+            ),
+            # delete_after=bot.game_requested_expiry.seconds,
         )
 
-        # Adds game to game status store
-        game_id = await GameStatus.add(game_details, bot.game_requested_expiry)
+    @staticmethod
+    async def player_confirm(game_id: GameId, player_id: int):
+        unconfirmed_list = await GameStatus.confirm_player(game_id, player_id)
 
-        # Sends out confirmations to secondary players
-        await GameAdmin.confirm_game(game_id, game_details)
-
-    # ---------------------------------------------------------------------------- #
+        if len(unconfirmed_list) == 0:
+            await GameAdmin.start_game(game_id)
 
     @staticmethod
     async def start_game(game_id: GameId):
@@ -70,6 +92,15 @@ class GameAdmin:
 
         else:
             await GameStatus.set_game_queued(game_id)
+
+    @staticmethod
+    async def reply(game_id: GameId, replying_user: UserId) -> DiscordMessage:
+        only_game_details = await GameStatus.get(game_id)
+
+        await UserStatus.remove_notification(game_id, replying_user)
+        return await GameLoading.get_game(only_game_details.game).reply(
+            game_id, replying_user
+        )
 
     @staticmethod
     async def game_end(game_id: GameId):
@@ -120,32 +151,3 @@ class GameAdmin:
                 )
             except:
                 print("User not found while sending cancel game message")
-
-    @staticmethod
-    async def confirm_game(game_id: GameId, game_state: GameStatus.Game) -> None:
-        for player_id in game_state.unconfirmed_players:
-            await GameAdmin.send_confirm(player_id, game_id, game_state)
-
-    @staticmethod
-    async def send_confirm(
-        player_id: int, game_id: GameId, game_state: GameStatus.Game
-    ) -> None:
-        # Gets the dm channel of the player to send the confirmation over
-        dm = await bot.get_dm_channel(player_id)
-
-        await dm.send(
-            embed=create_confirm_embed(
-                player_id,
-                game_state,
-                GameLoading.get_game(game_state.game).get_details(),
-            ),
-            view=GameConfirm(game_id, GameAdmin.player_confirm, GameAdmin.cancel_game),
-            delete_after=bot.game_requested_expiry.seconds,
-        )
-
-    @staticmethod
-    async def player_confirm(player_id: int, game_id: GameId):
-        unconfirmed_list = await GameStatus.confirm_player(game_id, player_id)
-
-        if len(unconfirmed_list) == 0:
-            await GameAdmin.start_game(game_id)

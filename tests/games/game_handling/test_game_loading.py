@@ -5,19 +5,30 @@ from datetime import timedelta
 
 import pytest
 from dotenv import load_dotenv
+from sqlalchemy import over
 
-import games.utils
-from exceptions.game_exceptions import GameNotFound, NoLoadFunction
-
-from . import GameLoading
-
-Game = games.utils.Game
+from games.game_handling.game_loading import GameLoading
+from games.utils import Game
 
 load_dotenv()
 games_dir = os.getenv("GAMES_DIR")
 
 
 class TestGameLoading:
+    @pytest.fixture(autouse=True)
+    def clear_fake_game(self):
+        """
+        Makes sure that the fake game is deleted after tests
+        """
+
+        yield
+
+        if games_dir != None:
+            if os.path.exists(os.path.join(games_dir, "Fake Game")):
+                os.rmdir(os.path.join(games_dir, "Fake Game"))
+        else:
+            raise FileNotFoundError("GAMES_DIR env var not set")
+
     @staticmethod
     def create_fake_game(func):
         """
@@ -67,12 +78,12 @@ class TestGameLoading:
         assert type(loaded_module) == type(Game)
 
     def test_get_unknown_game(self):
-        with pytest.raises(GameNotFound):
+        with pytest.raises(KeyError):
             GameLoading.get_game("Unknown Game")
 
     @create_fake_game
     def test_get_improper_game(self):
-        with pytest.raises(NoLoadFunction):
+        with pytest.raises(AttributeError):
             GameLoading.get_game("Fake Game")
 
     def test_check_right_game_details(self):
