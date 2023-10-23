@@ -240,8 +240,19 @@ class GameStatus:
         await GameStatus.__pool.delete(shadow_key)
 
     @staticmethod
+    def is_expire_handler(
+        fn: Callable[[GameId, Game], Awaitable[None]]
+    ) -> Callable[[GameId, Game], Awaitable[None]]:
+        if GameStatus.__pubsub_task == None:
+            asyncio.get_running_loop().create_task(GameStatus.start_expire_listener())
+
+        asyncio.get_running_loop().create_task(GameStatus.__add_expire_handler(fn))
+
+        return fn
+
+    @staticmethod
     @is_main_instance
-    async def add_expire_handler(
+    async def __add_expire_handler(
         game_expire_callback: Callable[[GameId, Game], Awaitable[None]]
     ):
         """

@@ -120,12 +120,11 @@ class TestGameStatus:
             await GameStatus.confirm_player(game_id="test", player_id=2)
 
     async def test_shadowkey_timeout(self):
-        await GameStatus.start_expire_listener()
-
         callback_ran = False
         callback_id = "wrong"
         callback_state: GameStatus.Game | None = None
 
+        @GameStatus.is_expire_handler
         async def shadowkey_callback(game_id: str, game_state: GameStatus.Game):
             nonlocal callback_ran
             callback_ran = True
@@ -135,8 +134,6 @@ class TestGameStatus:
 
             nonlocal callback_state
             callback_state = game_state
-
-        await GameStatus.add_expire_handler(shadowkey_callback)
 
         test_game_id = await GameStatus.add(test_state, timedelta(seconds=1))
 
