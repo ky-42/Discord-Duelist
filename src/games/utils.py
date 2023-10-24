@@ -227,4 +227,4 @@ class Game(ABC):
                     f"Game of {game_state.game} is over! Its a tie!"
                 )
 
-        await GameAdmin.game_end(game_id)
+        await GameAdmin.cancel_game(game_id)

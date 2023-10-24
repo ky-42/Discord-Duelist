@@ -1,4 +1,5 @@
 import functools
+from typing import Optional
 
 from bot import bot
 from data_types import DiscordMessage, GameId, UserId
@@ -103,23 +104,6 @@ class GameAdmin:
         )
 
     @staticmethod
-    async def game_end(game_id: GameId):
-        # TODO update player status and call check game status to see if game needs to
-        # next queued game to see if all players are ready now
-
-        # This needs to be done first before the game is deleted
-        game_details = await GameStatus.get(game_id)
-
-        # Checks if after players were removed from the game if they are in another game that can start
-        moved_up_games = await UserStatus.clear_game(game_id, game_details.all_players)
-
-        for moved_up_game in moved_up_games:
-            await GameAdmin.start_game(moved_up_game)
-
-        await GameStatus.delete(game_id)
-        await GameData.delete_data(game_id)
-
-    @staticmethod
     async def cancel_game(game_id: GameId):
         # Clear all game data from redis
         # so update user status, remove game status, and game data
@@ -130,24 +114,14 @@ class GameAdmin:
         if game_details.status > 1:
             await GameData.delete_data(game_id)
         if game_details.status > 0:
-            await UserStatus.clear_game(
+            moved_up_games = await UserStatus.clear_game(
                 game_id,
                 game_details.all_players,
             )
+
+            # Trys to start any games there were moved from que to current
+            for moved_up_game in moved_up_games:
+                await GameAdmin.start_game(moved_up_game)
+
         if game_details.status > -1:
             await GameStatus.delete(game_id)
-
-        # Determines what message to send to players
-        if game_details.status == 0:
-            cancel_message = f"A player declined the game of {game_details.game}"
-        else:
-            cancel_message = f"Game of {game_details.game} has been cancelled"
-
-        # Sends message to all players
-        for accepted_player_id in game_details.confirmed_players():
-            try:
-                await (await bot.get_dm_channel(accepted_player_id)).send(
-                    cancel_message
-                )
-            except:
-                print("User not found while sending cancel game message")

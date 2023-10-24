@@ -10,9 +10,10 @@ from bot import Bot
 from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
 from exceptions import GameNotFound
+from games.game_handling.game_actions import GameActions
 from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_loading import GameLoading
-from user_interfaces.game_views import GameReplySelect, GetPlayers
+from user_interfaces.game_views import GameSelect, GetPlayers
 
 
 class Game(commands.GroupCog, name="game"):
@@ -23,7 +24,7 @@ class Game(commands.GroupCog, name="game"):
     def __init__(self) -> None:
         super().__init__()
 
-    @app_commands.command(name="play")
+    @app_commands.command(name="play", description="Play a game!")
     async def play(self, interaction: discord.Interaction, game_name: str) -> None:
         """
         Starts the process of creating a game
@@ -78,13 +79,7 @@ class Game(commands.GroupCog, name="game"):
             for game_name in partial_matches[: max(len(partial_matches), 25)]
         ]
 
-    @play.error
-    async def play_error(
-        self, interaction: discord.Interaction, error: Exception
-    ) -> None:
-        pass
-
-    @app_commands.command(name="reply")
+    @app_commands.command(name="reply", description="Reply to game")
     async def reply(self, interaction: discord.Interaction):
         """
         When ran this will check if the user is in a game and if they are
@@ -119,8 +114,8 @@ class Game(commands.GroupCog, name="game"):
                 return await interaction.response.send_message(
                     content="Please select the game you want to play",
                     ephemeral=True,
-                    view=GameReplySelect(
-                        interaction.user.id, game_details, GameAdmin.reply
+                    view=GameSelect(
+                        interaction.user.id, game_details, GameAdmin.reply, "Reply"
                     ),
                 )
 
@@ -136,12 +131,40 @@ class Game(commands.GroupCog, name="game"):
     # async def status(self, interaction: discord.Interaction) -> None:
     #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
 
-    @app_commands.command(name="quit")
+    @app_commands.command(name="quit", description="Leave a game")
     async def quit(self, interaction: discord.Interaction) -> None:
-        interaction.user.id
-        # await GameAdmin.cancel_game()
-        await interaction.response.send_message(
-            "Hello from sub command 1", ephemeral=True
+        """
+        Sends user list of games they can leave with ability to select one
+        """
+
+        # Gets all of the users games and creates a dict with
+        # game_id: Description of game
+        if user_status := await UserStatus.get(interaction.user.id):
+            all_games = user_status.current_games + user_status.queued_games
+
+            # Gets the game details associated with the notifications
+            game_details: Dict[GameId, GameStatus.Game] = {}
+            for game_id in all_games:
+                try:
+                    current_game_details = await GameStatus.get(game_id)
+                except GameNotFound:
+                    await UserStatus.remove_notification(game_id, interaction.user.id)
+                else:
+                    if current_game_details.status == 2:
+                        game_details[game_id] = current_game_details
+
+            # Send a dropdown to select a game if there are multiple games
+            if len(game_details) > 0:
+                return await interaction.response.send_message(
+                    content="Please select the game you want to quit",
+                    ephemeral=True,
+                    view=GameSelect(
+                        interaction.user.id, game_details, GameActions.quit_game, "Quit"
+                    ),
+                )
+
+        return await interaction.response.send_message(
+            content="You have no games", ephemeral=True
         )
 
 

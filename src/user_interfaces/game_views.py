@@ -85,15 +85,13 @@ class GameConfirm(discord.ui.View):
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
+        await interaction.response.defer()
         try:
             await self.accept_func()
         except Exception as e:
-            await interaction.response.send_message(content=str(e), ephemeral=True)
+            await interaction.followup.send(content=str(e), ephemeral=True)
             # Lets user see error before deleting message
             await asyncio.sleep(10)
-        finally:
-            if interaction.message:
-                await interaction.followup.delete_message(interaction.message.id)
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -104,43 +102,45 @@ class GameConfirm(discord.ui.View):
         else:
             await interaction.response.send_message("Game rejected!", delete_after=10)
 
-        finally:
-            if interaction.message:
-                await asyncio.sleep(10)
-                await interaction.followup.delete_message(interaction.message.id)
 
-
-class GameReplySelect(ui.View):
+class GameSelect(ui.View):
     """
-    Dropdown menu to select game to reply to
+    Dropdown menu to select game
     """
 
     def __init__(
         self,
         user_id: UserId,
-        user_notifications: Dict[GameId, GameStatus.Game],
-        reply_func: Callable[[GameId, UserId], Awaitable[DiscordMessage]],
+        game_list: Dict[GameId, GameStatus.Game],
+        selected_func: Callable[[GameId, UserId], Awaitable[DiscordMessage]],
+        button_label: str,
     ):
         super().__init__()
 
-        self.reply_func = reply_func
+        self.user_id = user_id
+        self.reply_func = selected_func
 
+        self.add_dropdown(game_list)
+        self.add_select_button(button_label)
+        self.add_cancel_button()
+
+    def add_dropdown(self, game_list: Dict[GameId, GameStatus.Game]):
         self.game_dropdown = ui.Select(
             max_values=1, placeholder="Select a game to reply to"
         )
 
-        self.game_dropdown.callback = GameReplySelect.game_select_callback
-
-        for game_id, game_data in user_notifications.items():
+        for game_id, game_data in game_list.items():
             names = [
                 game_data.player_names[str(player_id)]
                 for player_id in game_data.all_players
-                if player_id != user_id
+                if player_id != self.user_id
             ]
 
             game_string = f"{game_data.game} - with {', '.join(names)}"
 
             self.game_dropdown.add_option(label=game_string, value=game_id)
+
+        self.game_dropdown.callback = GameSelect.game_select_callback
 
         self.add_item(self.game_dropdown)
 
@@ -148,8 +148,16 @@ class GameReplySelect(ui.View):
     async def game_select_callback(interaction: discord.Interaction):
         await interaction.response.defer()
 
-    @ui.button(label="Reply", style=discord.ButtonStyle.primary, row=1)
-    async def confirm(self, interaction: discord.Interaction, _: ui.Button):
+    def add_select_button(self, button_label: str):
+        self.selected_button = ui.Button(
+            label=button_label, style=discord.ButtonStyle.green, row=1
+        )
+
+        self.selected_button.callback = self.select
+
+        self.add_item(self.selected_button)
+
+    async def select(self, interaction: discord.Interaction):
         if len(self.game_dropdown.values) > 0:
             game_reply = await self.reply_func(
                 self.game_dropdown.values[0], interaction.user.id
@@ -158,8 +166,16 @@ class GameReplySelect(ui.View):
         else:
             await interaction.response.defer()
 
-    @ui.button(label="Cancel", style=discord.ButtonStyle.red, row=1)
-    async def cancel(self, interaction: discord.Interaction, _: ui.Button):
+    def add_cancel_button(self):
+        self.cancel_button = ui.Button(
+            label="Cancel", style=discord.ButtonStyle.red, row=1
+        )
+
+        self.cancel_button.callback = self.cancel
+
+        self.add_item(self.cancel_button)
+
+    async def cancel(self, interaction: discord.Interaction):
         await interaction.response.defer()
         await interaction.delete_original_response()
         self.stop()
