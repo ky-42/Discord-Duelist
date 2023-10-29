@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Dict, List
 
 import discord
-from discord import app_commands
+from discord import User, app_commands
 from discord.ext import commands
 
 from bot import Bot
@@ -13,7 +13,8 @@ from exceptions import GameNotFound
 from games.game_handling.game_actions import GameActions
 from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_loading import GameLoading
-from user_interfaces.game_views import GameSelect, GetPlayers
+from user_interfaces.game_embeds import game_info_embed
+from user_interfaces.game_views import EmbedCycle, GameSelect, GetPlayers
 
 
 class Game(commands.GroupCog, name="game"):
@@ -47,7 +48,6 @@ class Game(commands.GroupCog, name="game"):
         # instead they can just select the users from a dropdown menu
         return await interaction.response.send_message(
             content="Please select the players you want to play with",
-            ephemeral=True,
             view=GetPlayers(
                 game_details.min_players,
                 game_details.max_players,
@@ -57,6 +57,7 @@ class Game(commands.GroupCog, name="game"):
                 functools.partial(GameAdmin.players_selected, game_object),
             ),
             delete_after=timedelta(minutes=5).total_seconds(),
+            ephemeral=True,
         )
 
     @play.autocomplete("game_name")
@@ -79,7 +80,7 @@ class Game(commands.GroupCog, name="game"):
             for game_name in partial_matches[: max(len(partial_matches), 25)]
         ]
 
-    @app_commands.command(name="reply", description="Reply to game")
+    @app_commands.command(name="reply", description="Reply to a game")
     async def reply(self, interaction: discord.Interaction):
         """
         When ran this will check if the user is in a game and if they are
@@ -123,13 +124,62 @@ class Game(commands.GroupCog, name="game"):
             content="You have no games to reply to", ephemeral=True
         )
 
-    # @app_commands.command(name="queue")
-    # async def queue(self, interaction: discord.Interaction) -> None:
-    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+    @app_commands.command(name="status", description="List your games")
+    async def status(self, interaction: discord.Interaction) -> None:
+        """
+        Used to see all the games a user is in
+        """
 
-    # @app_commands.command(name="status")
-    # async def status(self, interaction: discord.Interaction) -> None:
-    #     await interaction.response.send_message("Hello from sub command 1", ephemeral=True)
+        if user_status := await UserStatus.get(interaction.user.id):
+            user_id = interaction.user.id
+
+            queued_game_details: Dict[GameId, GameStatus.Game] = {}
+            for game_id in user_status.queued_games:
+                try:
+                    game_details = await GameStatus.get(game_id)
+                except GameNotFound:
+                    await UserStatus.clear_game(game_id, [user_id])
+                else:
+                    if game_details.status == 1:
+                        queued_game_details[game_id] = game_details
+                    else:
+                        print("Game should be queued")
+
+            current_game_details: Dict[GameId, GameStatus.Game] = {}
+            for game_id in user_status.current_games:
+                try:
+                    game_details = await GameStatus.get(game_id)
+                except GameNotFound:
+                    await UserStatus.clear_game(game_id, [user_id])
+                else:
+                    if game_details.status == 2:
+                        current_game_details[game_id] = game_details
+                    else:
+                        print("Game should be active")
+
+            return await interaction.response.send_message(
+                embed=(
+                    active_embed := game_info_embed(current_game_details, user_id, True)
+                ),
+                view=EmbedCycle(
+                    user_id,
+                    [
+                        (
+                            active_embed,
+                            "View Active Games",
+                        ),
+                        (
+                            game_info_embed(queued_game_details, user_id, False),
+                            "View Queued Games",
+                        ),
+                    ],
+                ),
+                ephemeral=True,
+            )
+
+        return await interaction.response.send_message(
+            content="You are not in any games", ephemeral=True
+        )
 
     @app_commands.command(name="quit", description="Leave a game")
     async def quit(self, interaction: discord.Interaction) -> None:
@@ -142,13 +192,13 @@ class Game(commands.GroupCog, name="game"):
         if user_status := await UserStatus.get(interaction.user.id):
             all_games = user_status.current_games + user_status.queued_games
 
-            # Gets the game details associated with the notifications
+            # Gets the game details
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in all_games:
                 try:
                     current_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
-                    await UserStatus.remove_notification(game_id, interaction.user.id)
+                    await UserStatus.clear_game(game_id, [interaction.user.id])
                 else:
                     if current_game_details.status == 2:
                         game_details[game_id] = current_game_details
@@ -164,7 +214,7 @@ class Game(commands.GroupCog, name="game"):
                 )
 
         return await interaction.response.send_message(
-            content="You have no games", ephemeral=True
+            content="You are not in any games", ephemeral=True
         )
 
 

@@ -213,6 +213,11 @@ class UserStatus:
             pipe.json().delete(user_id)
             deleted = True
 
+        if game_id in user_status.notifications:
+            pipe.json().arrpop(
+                game_id, ".notifications", user_status.notifications.index(game_id)
+            )
+
         await pipe.execute()
 
         if not deleted:

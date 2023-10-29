@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import discord
+
+from data_types import GameId, UserId
+from user_interfaces.utils import game_description_string
 
 # Stops circular import
 if TYPE_CHECKING:
@@ -46,3 +49,26 @@ def create_confirm_embed(
         message_embed.add_field(name="Bet", value=game_state.bet, inline=False)
 
     return message_embed
+
+
+def game_info_embed(
+    games_details: Dict[GameId, GameStatus.Game], to_user_id: UserId, is_active: bool
+) -> discord.Embed:
+    """
+    Creates an embed that list the games a user is in
+    """
+
+    games_type = "Active Games" if is_active else "Queued Games"
+
+    info_embed = discord.Embed(title=(games_type))
+
+    if len(games_details.keys()):
+        for game_id, game_details in games_details.items():
+            info_embed.add_field(
+                name=game_description_string(game_details, to_user_id),
+                value=f"id: {game_id}",
+            )
+    else:
+        info_embed.description = "No " + games_type.lower()
+
+    return info_embed

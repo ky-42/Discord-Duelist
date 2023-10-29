@@ -1,11 +1,12 @@
 import asyncio
-from typing import Awaitable, Callable, Dict
+from typing import Awaitable, Callable, Dict, Optional
 
 import discord
 from discord import ui
 
 from data_types import DiscordMessage, GameId, UserId
 from data_wrappers.game_status import GameStatus
+from user_interfaces.utils import game_description_string
 
 
 class GetPlayers(ui.View):
@@ -130,15 +131,10 @@ class GameSelect(ui.View):
         )
 
         for game_id, game_data in game_list.items():
-            names = [
-                game_data.player_names[str(player_id)]
-                for player_id in game_data.all_players
-                if player_id != self.user_id
-            ]
-
-            game_string = f"{game_data.game} - with {', '.join(names)}"
-
-            self.game_dropdown.add_option(label=game_string, value=game_id)
+            self.game_dropdown.add_option(
+                label=game_description_string(game_data, self.user_id, game_id),
+                value=game_id,
+            )
 
         self.game_dropdown.callback = GameSelect.game_select_callback
 
@@ -179,3 +175,54 @@ class GameSelect(ui.View):
         await interaction.response.defer()
         await interaction.delete_original_response()
         self.stop()
+
+
+class EmbedCycle(ui.View):
+    """
+    View that cycles through embeds
+
+    Parameters
+    ----------
+    user_id:
+        User that is supposed to interact with this view
+    states:
+        List of embeds with a string that will be shown on
+        the button when the embed is next in cycle
+
+        IMPORTANT: The first embed in the list must be the embed
+        thats initally send with the message
+    """
+
+    def __init__(self, user_id: UserId, states: list[tuple[discord.Embed, str]]):
+        super().__init__()
+
+        self.user_id = user_id
+        self.states = states
+
+        self.state = 0
+
+        self.switch_button = ui.Button(
+            label=self.states[((self.state + 1) % len(self.states))][1],
+            style=discord.ButtonStyle.green,
+            row=1,
+        )
+
+        self.switch_button.callback = self.switch_callback
+
+        self.add_item(self.switch_button)
+
+    async def switch_callback(self, interaction: discord.Interaction):
+        if interaction.message and interaction.user.id == self.user_id:
+            self.state += 1
+
+            self.switch_button.label = self.states[
+                ((self.state + 1) % len(self.states))
+            ][1]
+
+            await interaction.response.edit_message(
+                embed=self.states[((self.state) % len(self.states))][0],
+                view=self,
+            )
+
+        else:
+            await interaction.response.defer()
