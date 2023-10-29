@@ -44,6 +44,12 @@ class GetPlayers(ui.View):
     @ui.button(label="Invite Players", style=discord.ButtonStyle.green, row=1)
     async def selected_players(self, interaction: discord.Interaction, _: ui.Button):
         if interaction.user.id == self.starting_player:
+            # Stops user from inviting themselves
+            if self.starting_player in [user.id for user in self.user_select.values]:
+                return await interaction.response.send_message(
+                    "Stop trying to play with yourself", ephemeral=True, delete_after=5
+                )
+
             try:
                 await self.players_selected_callback(
                     {str(player.id): player.name for player in self.user_select.values}
@@ -86,13 +92,12 @@ class GameConfirm(discord.ui.View):
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
-        await interaction.response.defer()
         try:
             await self.accept_func()
         except Exception as e:
-            await interaction.followup.send(content=str(e), ephemeral=True)
-            # Lets user see error before deleting message
-            await asyncio.sleep(10)
+            await interaction.response.send_message(content=str(e), ephemeral=True)
+        else:
+            await interaction.response.edit_message(view=None)
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -101,7 +106,8 @@ class GameConfirm(discord.ui.View):
         except Exception as e:
             await interaction.response.send_message(content=str(e), ephemeral=True)
         else:
-            await interaction.response.send_message("Game rejected!", delete_after=10)
+            if interaction.message:
+                await interaction.message.delete()
 
 
 class GameSelect(ui.View):
