@@ -61,16 +61,16 @@ class Game(commands.GroupCog, name="game"):
 
     @play.autocomplete("game_name")
     async def play_autocomplete(
-        self, _interaction: discord.Interaction, current: str
+        self, _interaction: discord.Interaction, active: str
     ) -> List[app_commands.Choice[str]]:
         """
         Autocomplete for game options in the play command
         """
         games_list = GameLoading.list_all_games()
 
-        # Gets list of game names that contain the current string
+        # Gets list of game names that contain the active string
         partial_matches = list(
-            filter(lambda x: current.lower() in x.lower(), games_list)
+            filter(lambda x: active.lower() in x.lower(), games_list)
         )
 
         # Returns the first 25 matches
@@ -102,12 +102,12 @@ class Game(commands.GroupCog, name="game"):
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in user_notifications:
                 try:
-                    current_game_details = await GameStatus.get(game_id)
+                    active_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
                     await UserStatus.remove_notification(game_id, interaction.user.id)
                 else:
-                    if current_game_details.status == 2:
-                        game_details[game_id] = current_game_details
+                    if active_game_details.status == 2:
+                        game_details[game_id] = active_game_details
 
             # Send a dropdown to select a game if there are multiple games
             if len(game_details) > 0:
@@ -144,21 +144,21 @@ class Game(commands.GroupCog, name="game"):
                     else:
                         print("Game should be queued")
 
-            current_game_details: Dict[GameId, GameStatus.Game] = {}
-            for game_id in user_status.current_games:
+            active_game_details: Dict[GameId, GameStatus.Game] = {}
+            for game_id in user_status.active_games:
                 try:
                     game_details = await GameStatus.get(game_id)
                 except GameNotFound:
                     await UserStatus.clear_game(game_id, [user_id])
                 else:
                     if game_details.status == 2:
-                        current_game_details[game_id] = game_details
+                        active_game_details[game_id] = game_details
                     else:
                         print("Game should be active")
 
             return await interaction.response.send_message(
                 embed=(
-                    active_embed := game_info_embed(current_game_details, user_id, True)
+                    active_embed := game_info_embed(active_game_details, user_id, True)
                 ),
                 view=EmbedCycle(
                     user_id,
@@ -189,18 +189,18 @@ class Game(commands.GroupCog, name="game"):
         # Gets all of the users games and creates a dict with
         # game_id: Description of game
         if user_status := await UserStatus.get(interaction.user.id):
-            all_games = user_status.current_games + user_status.queued_games
+            all_games = user_status.active_games + user_status.queued_games
 
             # Gets the game details
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in all_games:
                 try:
-                    current_game_details = await GameStatus.get(game_id)
+                    active_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
                     await UserStatus.clear_game(game_id, [interaction.user.id])
                 else:
-                    if current_game_details.status == 2:
-                        game_details[game_id] = current_game_details
+                    if active_game_details.status == 2:
+                        game_details[game_id] = active_game_details
 
             # Send a dropdown to select a game if there are multiple games
             if len(game_details) > 0:

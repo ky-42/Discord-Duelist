@@ -33,19 +33,19 @@ class TicTacToe(Game):
         game_state = game_info.GameState
 
         game_data = TicTacToeData(
-            current_player=game_state.all_players[0],
+            active_player=game_state.all_players[0],
             player_order=game_state.all_players,
             player_square_type={
                 str(game_state.all_players[0]): 1,
                 str(game_state.all_players[1]): 2,
             },
-            current_board=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+            active_board=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         )
 
         await Game.store_data(game_id, game_data)
 
         # Send notification to first player
-        await Game.send_notification(game_id, game_data.current_player)
+        await Game.send_notification(game_id, game_data.active_player)
 
     @staticmethod
     @get_game_info
@@ -56,7 +56,7 @@ class TicTacToe(Game):
     ):
         game_data = game_info.GameData
 
-        if game_data.current_player == user_id:
+        if game_data.active_player == user_id:
             return DiscordMessage(
                 content="Press a button to play your move!",
                 view=TicTacToeView(game_id, game_data, TicTacToe.play_move),
@@ -76,22 +76,22 @@ class TicTacToe(Game):
         game_data = game_info.GameData
 
         # Updates the board with the move
-        game_data.current_board[row][column] = game_data.player_square_type[
-            str(game_data.current_player)
+        game_data.active_board[row][column] = game_data.player_square_type[
+            str(game_data.active_player)
         ]
 
-        if check_win(game_data.current_board) != 0:
-            await TicTacToe.end_game(game_id, [game_data.current_player])
+        if check_win(game_data.active_board) != 0:
+            await TicTacToe.end_game(game_id, [game_data.active_player])
         else:
-            # Switches the current player
-            game_data.current_player = (
+            # Switches the active player
+            game_data.active_player = (
                 game_data.player_order[0]
-                if game_data.current_player == game_data.player_order[1]
+                if game_data.active_player == game_data.player_order[1]
                 else game_data.player_order[1]
             )
 
             await Game.store_data(game_id, game_data)
-            await Game.send_notification(game_id, game_data.current_player)
+            await Game.send_notification(game_id, game_data.active_player)
 
 
 def load() -> Type[Game]:

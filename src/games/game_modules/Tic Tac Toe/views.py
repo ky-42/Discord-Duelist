@@ -68,12 +68,12 @@ class TicTacToeView(discord.ui.View):
             for column in range(3):
                 self.add_item(
                     TicTacToeButton(
-                        row, column, self.game_data.current_board[row][column]
+                        row, column, self.game_data.active_board[row][column]
                     )
                 )
 
-        self.current_player = game_data.current_player
-        self.update_state = game_data.player_square_type[str(self.current_player)]
+        self.active_player = game_data.active_player
+        self.update_state = game_data.player_square_type[str(self.active_player)]
 
     async def pressed(
         self,
@@ -82,9 +82,9 @@ class TicTacToeView(discord.ui.View):
         interaction: discord.Interaction,
         button: TicTacToeButton,
     ):
-        if self.current_player == interaction.user.id:
+        if self.active_player == interaction.user.id:
             # Updates the button to the correct
-            # style and label on the current view
+            # style and label on the active view
             if self.update_state == 1:
                 button.style = discord.ButtonStyle.success
                 button.label = "o"
@@ -107,5 +107,5 @@ class TicTacToeView(discord.ui.View):
                 await asyncio.sleep(5)
                 await interaction.followup.delete_message(interaction.message.id)
         else:
-            # Ignore the button press not by the current player
+            # Ignore the button press not by the active player
             await interaction.response.defer()

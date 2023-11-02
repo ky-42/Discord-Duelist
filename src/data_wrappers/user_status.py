@@ -23,12 +23,12 @@ class UserStatus:
     __pool = redis_sync.Redis(db=__db_number)
 
     # Max number of games a user can be in at once
-    __max_current_games = 6
+    __max_active_games = 6
     __max_queued_games = 6
 
     @dataclass
     class User:
-        current_games: List[GameId]
+        active_games: List[GameId]
         queued_games: List[GameId]
         notifications: List[GameId]
         notification_id: Optional[MessageId] = None
@@ -70,7 +70,7 @@ class UserStatus:
         game_id: GameId,
     ):
         """
-        Adds a game to a user's current_games or queued_games
+        Adds a game to a user's active_games or queued_games
 
         Should only be called by join_game when a user already
         existst in the db
@@ -80,20 +80,20 @@ class UserStatus:
         user_status = UserStatus.User(**user_status)
 
         if (
-            game_id not in user_status.current_games
+            game_id not in user_status.active_games
             and game_id not in user_status.queued_games
         ):
-            # If user is not in the game, add game to current_games or queued_games
+            # If user is not in the game, add game to active_games or queued_games
             # depending on how many games the user is already in
             pipe.multi()
-            if len(user_status.current_games) >= UserStatus.__max_current_games:
+            if len(user_status.active_games) >= UserStatus.__max_active_games:
                 if len(user_status.queued_games) >= UserStatus.__max_queued_games:
                     # If the user is already in the max number of games, do nothing
                     # TODO raise exception
                     return
                 pipe.json().arrappend(str(user_id), ".queued_games", game_id)
             else:
-                pipe.json().arrappend(str(user_id), ".current_games", game_id)
+                pipe.json().arrappend(str(user_id), ".active_games", game_id)
             await pipe.execute()
         else:
             print(f"User {user_id} is already in game {game_id}")
@@ -105,7 +105,7 @@ class UserStatus:
     ):
         """
         Creates a new user in the db with the provided game_id
-        as their current_game
+        as their active_game
 
         Should only be called by join_game
         """
@@ -115,7 +115,7 @@ class UserStatus:
             ".",
             asdict(
                 UserStatus.User(
-                    current_games=[game_id], queued_games=[], notifications=[]
+                    active_games=[game_id], queued_games=[], notifications=[]
                 )
             ),
         )
@@ -127,13 +127,13 @@ class UserStatus:
 
         raises PlayerNotFound if a user is not in the db
 
-        A game is ready if all users have the provided game_id in their current_games
+        A game is ready if all users have the provided game_id in their active_games
         """
 
         for user_id in user_ids:
             user_status = await UserStatus.get(user_id)
             if user_status:
-                if game_id not in user_status.current_games:
+                if game_id not in user_status.active_games:
                     return False
             else:
                 raise PlayerNotFound(user_id)
@@ -145,16 +145,16 @@ class UserStatus:
         user_ids: List[UserId],
     ) -> List[GameId]:
         """
-        Removes a game from all users current_games and queued_games
+        Removes a game from all users active_games and queued_games
 
-        Returns a list of game_ids that were moved from queued_games to current_games
+        Returns a list of game_ids that were moved from queued_games to active_games
         """
 
         moved_up_games: List[GameId] = []
 
         for user in user_ids:
             try:
-                # Removes the game and stores the ids of the games that moved from queued_games to current_games
+                # Removes the game and stores the ids of the games that moved from queued_games to active_games
                 if move_up_ids := await UserStatus.__remove_game(game_id, user):
                     for move_up_id in move_up_ids:
                         if move_up_id not in moved_up_games:
@@ -175,26 +175,26 @@ class UserStatus:
         user_id: UserId,
     ) -> Optional[List[GameId]]:
         """
-        Removes a game from a user's current_games or queued_games
+        Removes a game from a user's active_games or queued_games
 
         If the user is not in the game, raises ActiveGameNotFound
 
-        Returns the ids of any queued games that was moved to current_games
+        Returns the ids of any queued games that was moved to active_games
         """
 
         user_status = await pipe.json().get(user_id)
         user_status = UserStatus.User(**user_status)
 
-        # If game is in current games or queued games and remove it
+        # If game is in active games or queued games and remove it
         if (
-            game_id not in user_status.current_games
+            game_id not in user_status.active_games
             and game_id not in user_status.queued_games
         ):
             raise GameNotFound(f"{game_id} not found in user {user_id}'s games")
 
         game_type, game_index = (
-            ("current_games", user_status.current_games.index(game_id))
-            if game_id in user_status.current_games
+            ("active_games", user_status.active_games.index(game_id))
+            if game_id in user_status.active_games
             else ("queued_games", user_status.queued_games.index(game_id))
         )
 
@@ -206,7 +206,7 @@ class UserStatus:
 
         if (
             # Its == 1 because this uses outdated data from before we delete one
-            len(user_status.current_games) + len(user_status.queued_games)
+            len(user_status.active_games) + len(user_status.queued_games)
             == 1
         ):
             # If the user is not in any games, delete them from the db
@@ -221,7 +221,7 @@ class UserStatus:
         await pipe.execute()
 
         if not deleted:
-            # If the user is still in the db, move up a game from queued_games to current_games
+            # If the user is still in the db, move up a game from queued_games to active_games
             return await UserStatus.__move_up_games(user_id)
 
     @staticmethod
@@ -230,7 +230,7 @@ class UserStatus:
         pipe: redis_async_client.Pipeline, user_id: UserId
     ) -> List[GameId]:
         """
-        Moves games from queued_games to current_games if there is space
+        Moves games from queued_games to active_games if there is space
 
         TODO maybe make this use pubsub so that its not on the calling function
         to check if the moved up game is ready cause GameAdmin could just link to this
@@ -243,20 +243,20 @@ class UserStatus:
 
         flag = True
         while flag:
-            # Checks if there is space in current_games and if there are games in queued_games
+            # Checks if there is space in active_games and if there are games in queued_games
             if (
-                len(user_status.current_games) < UserStatus.__max_current_games
+                len(user_status.active_games) < UserStatus.__max_active_games
                 and len(user_status.queued_games) > 0
             ):
                 pipe.multi()
                 pipe.json().arrpop(str(user_id), ".queued_games", 0)
                 pipe.json().arrappend(
-                    str(user_id), ".current_games", user_status.queued_games[0]
+                    str(user_id), ".active_games", user_status.queued_games[0]
                 )
                 moved_games.append((await pipe.execute())[0])
 
                 # Updates local object for next iteration
-                user_status.current_games.append(user_status.queued_games.pop(0))
+                user_status.active_games.append(user_status.queued_games.pop(0))
             else:
                 flag = False
 
@@ -288,8 +288,8 @@ class UserStatus:
         If the user does not exist, returns 0
         """
 
-        if current_status := await UserStatus.get(user_id):
-            return len(current_status.notifications)
+        if active_status := await UserStatus.get(user_id):
+            return len(active_status.notifications)
         return 0
 
     @staticmethod

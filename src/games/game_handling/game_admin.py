@@ -119,7 +119,7 @@ class GameAdmin:
                 game_details.all_players,
             )
 
-            # Trys to start any games there were moved from que to current
+            # Trys to start any games there were moved from que to active
             for moved_up_game in moved_up_games:
                 await GameAdmin.start_game(moved_up_game)
 
