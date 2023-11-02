@@ -30,16 +30,19 @@ class GameData:
     GDC = TypeVar("GDC", bound=GameDataClass)
 
     @staticmethod
-    async def retrive_data(game_id: GameId, data_class: Type[GDC]):
+    async def retrive_data(game_id: GameId, retrive_data_type: Type[GDC]):
         if game_state := await GameData.__pool.json().get(game_id):
-            return data_class(**game_state)
+            return retrive_data_type(**game_state)
         raise GameNotFound(f"Game {game_id} not found")
 
     @staticmethod
-    async def store_data(game_id: GameId, data: Type[GDC]):
-        # TODO: add timeout
-        await GameData.__pool.json().set(game_id, ".", asdict(data))
+    async def store_data(game_id: GameId, data: GameDataClass):
+        if len((data_dict := asdict(data)).keys()) > 0:
+            print("No data to store")
+        await GameData.__pool.json().set(game_id, ".", data_dict)
 
     @staticmethod
     async def delete_data(game_id: GameId):
-        await GameData.__pool.delete(game_id)
+        delete_amount = await GameData.__pool.delete(game_id)
+        if not delete_amount:
+            print("No data deleted")
