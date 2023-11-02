@@ -44,10 +44,6 @@ def create_confirm_embed(
     file = discord.File(game_details.thumbnail_file_path, filename="abc.png")
     message_embed.set_thumbnail(url=f"attachment://{file.filename}")
 
-    # Adds bet to embed
-    if game_state.bet:
-        message_embed.add_field(name="Bet", value=game_state.bet, inline=False)
-
     return message_embed
 
 

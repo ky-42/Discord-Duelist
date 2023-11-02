@@ -34,7 +34,6 @@ class Game(commands.GroupCog, name="game"):
         game_object = GameStatus.Game(
             status=0,
             game=game_name,
-            bet=0,
             starting_player=interaction.user.id,
             player_names={str(interaction.user.id): interaction.user.name},
             all_players=[interaction.user.id],

@@ -43,9 +43,6 @@ class GameStatus:
         game[str]:
             Name of game type
 
-        bet[int]:
-            Amount of points bet on game
-
         starting_player[int]:
             Player id of player who started the game
 
@@ -61,7 +58,6 @@ class GameStatus:
 
         status: Literal[0, 1, 2]
         game: str
-        bet: int
         starting_player: int
         player_names: Dict[str, str]
         all_players: List[UserId]
