@@ -1,4 +1,4 @@
-# jubilant-computing-machine
+# Discord Duelist
 
 # Formater
 ## Black
