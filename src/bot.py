@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 
 import discord
@@ -34,9 +35,10 @@ class Bot(commands.Bot):
     async def setup_hook(self: commands.Bot):
         # Loads all cogs
         await self.load_extension("cogs.game")
-        await self.load_extension("cogs.tournament")
-        await self.load_extension("cogs.money")
         await self.load_extension("cogs.task")
+
+        if os.getenv("TESTING"):
+            await self.load_extension("cogs.debug")
 
         # Syncs commands to mals server
         MY_GUILD = discord.Object(id=715439787288428605)

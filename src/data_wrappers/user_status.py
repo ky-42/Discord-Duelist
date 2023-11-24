@@ -204,6 +204,11 @@ class UserStatus:
 
         pipe.json().arrpop(str(user_id), f".{game_type}", game_index)
 
+        if game_id in user_status.notifications:
+            pipe.json().arrpop(
+                str(user_id), ".notifications", user_status.notifications.index(game_id)
+            )
+
         if (
             # Its == 1 because this uses outdated data from before we delete one
             len(user_status.active_games) + len(user_status.queued_games)
@@ -212,11 +217,6 @@ class UserStatus:
             # If the user is not in any games, delete them from the db
             pipe.json().delete(user_id)
             deleted = True
-
-        if game_id in user_status.notifications:
-            pipe.json().arrpop(
-                game_id, ".notifications", user_status.notifications.index(game_id)
-            )
 
         await pipe.execute()
 

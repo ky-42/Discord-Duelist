@@ -112,3 +112,13 @@ def is_main_instance(fn):
     if needs_await:
         return async_wrapper
     return wrapper
+
+
+class RedisDb:
+    """Used for general redis commands"""
+
+    __pool = redis_sync.Redis(db=0)
+
+    @staticmethod
+    async def flush_db():
+        await RedisDb.__pool.flushall()

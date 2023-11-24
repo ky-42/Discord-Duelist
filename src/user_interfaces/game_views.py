@@ -213,11 +213,11 @@ class EmbedCycle(ui.View):
             row=1,
         )
 
-        self.switch_button.callback = self.switch_callback
+        self.switch_button.callback = self.__switch_callback
 
         self.add_item(self.switch_button)
 
-    async def switch_callback(self, interaction: discord.Interaction):
+    async def __switch_callback(self, interaction: discord.Interaction):
         if interaction.message and interaction.user.id == self.user_id:
             self.state += 1
 

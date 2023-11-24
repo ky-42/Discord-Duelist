@@ -17,7 +17,7 @@ from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, GetPlayers
 
 
-class Game(commands.GroupCog, name="game"):
+class Game(commands.Cog):
     """
     Commands used to interact with games
     """
@@ -195,12 +195,12 @@ class Game(commands.GroupCog, name="game"):
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in all_games:
                 try:
-                    active_game_details = await GameStatus.get(game_id)
+                    current_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
                     await UserStatus.clear_game(game_id, [interaction.user.id])
                 else:
-                    if active_game_details.status == 2:
-                        game_details[game_id] = active_game_details
+                    if current_game_details.status in [1, 2]:
+                        game_details[game_id] = current_game_details
 
             # Send a dropdown to select a game if there are multiple games
             if len(game_details) > 0:
