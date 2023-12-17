@@ -3,7 +3,7 @@ import random
 import string
 from dataclasses import asdict, dataclass
 from datetime import timedelta
-from typing import Awaitable, Callable, Dict, List, Literal, Mapping
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Mapping, Optional
 
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
@@ -11,10 +11,10 @@ import redis.asyncio.client as redis_async_client
 from data_types import GameId, UserId
 from exceptions import GameNotFound, PlayerNotFound
 
-from .utils import is_main_instance, pipeline_watch
+from .utils import RedisDb, is_main_instance, pipeline_watch
 
 
-class GameStatus:
+class GameStatus(RedisDb):
     """
     API wrapper for reddis db which handles the status of games
     all entrys have a shadow key to keep track of when games expire.
@@ -77,8 +77,6 @@ class GameStatus:
 
     # Callbacks for when games expire
     __expire_callbacks: dict[str, Callable[[GameId, Game], Awaitable[None]]] = {}
-    # Instance of pubsub task. Used to handle shadow key expire events
-    __pubsub_task: asyncio.Task | None = None
 
     @staticmethod
     def __get_shadow_key(game_id: GameId) -> str:
@@ -95,42 +93,6 @@ class GameStatus:
         """
 
         return "".join(random.choices(string.ascii_letters + string.digits, k=16))
-
-    @staticmethod
-    async def start_expire_listener():
-        """
-        Starts the expire listener
-
-        Important: This function must be called before any games are added to the db
-        """
-
-        # Sets config to listen for expire events
-        await GameStatus.__pool.config_set("notify-keyspace-events", "Ex")
-
-        # Creates pubsub object and subscribes to expire events
-        pubsub_obj = GameStatus.__pool.pubsub()
-        await pubsub_obj.psubscribe(
-            **{
-                f"__keyevent@{GameStatus.__db_number}__:expired": GameStatus.__expire_handler
-            }
-        )
-
-        GameStatus.__pubsub_task = asyncio.create_task(pubsub_obj.run())
-
-    @staticmethod
-    async def stop_expire_listener():
-        """
-        Stops the expire listener
-        """
-
-        # Sets config to listen for expire events
-        await GameStatus.__pool.config_set("notify-keyspace-events", "")
-
-        if GameStatus.__pubsub_task:
-            GameStatus.__pubsub_task.cancel()
-            await GameStatus.__pubsub_task
-
-            GameStatus.__pubsub_task = None
 
     @staticmethod
     async def add(game_status: Game, expire_time: timedelta) -> GameId:
@@ -165,14 +127,17 @@ class GameStatus:
         raise GameNotFound(game_id)
 
     @staticmethod
-    async def set_expiry(game_id: GameId, extend_time: timedelta):
+    async def set_expiry(game_id: GameId, extend_time: Optional[timedelta]):
         """
         Sets the amount of time before a game expires
         """
 
-        # Only need to update shadow key cause it is the only one that expires
         shadow_key = GameStatus.__get_shadow_key(game_id)
-        await GameStatus.__pool.expire(shadow_key, extend_time)
+        if extend_time:
+            # Only need to update shadow key cause it is the only one that expires
+            await GameStatus.__pool.expire(shadow_key, extend_time)
+        else:
+            await GameStatus.__pool.persist(shadow_key)
 
     @staticmethod
     async def set_game_unconfirmed(game_id: GameId):
@@ -236,13 +201,11 @@ class GameStatus:
         await GameStatus.__pool.delete(shadow_key)
 
     @staticmethod
-    def is_expire_handler(
+    def handle_game_expire(
         fn: Callable[[GameId, Game], Awaitable[None]]
     ) -> Callable[[GameId, Game], Awaitable[None]]:
-        if GameStatus.__pubsub_task == None:
-            asyncio.get_running_loop().create_task(GameStatus.start_expire_listener())
-
-        asyncio.get_running_loop().create_task(GameStatus.__add_expire_handler(fn))
+        if (name := fn.__name__) not in GameStatus.__expire_callbacks:
+            GameStatus.__expire_callbacks[name] = fn
 
         return fn
 
@@ -271,8 +234,8 @@ class GameStatus:
             raise ValueError("Callback of same name already exists")
 
     @staticmethod
-    @is_main_instance
-    async def __expire_handler(msg):
+    @RedisDb.is_pubsub_callback(f"__keyevent@{__db_number}__:expired")
+    async def __expire_handler(msg: Any):
         """
         Handler for when a key expires
 

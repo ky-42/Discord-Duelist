@@ -3,17 +3,16 @@ from datetime import timedelta
 from typing import Dict, List
 
 import discord
-from discord import User, app_commands
+from discord import app_commands
 from discord.ext import commands
 
 from bot import Bot
 from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
 from exceptions import GameNotFound
-from games.game_handling.game_actions import GameActions
 from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_loading import GameLoading
-from user_interfaces.game_embeds import game_info_embed
+from user_interfaces.game_embeds import game_list_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, GetPlayers
 
 
@@ -158,7 +157,7 @@ class Game(commands.Cog):
 
             return await interaction.response.send_message(
                 embed=(
-                    active_embed := game_info_embed(active_game_details, user_id, True)
+                    active_embed := game_list_embed(user_id, True, active_game_details)
                 ),
                 view=EmbedCycle(
                     user_id,
@@ -168,7 +167,7 @@ class Game(commands.Cog):
                             "View Active Games",
                         ),
                         (
-                            game_info_embed(queued_game_details, user_id, False),
+                            game_list_embed(user_id, False, queued_game_details),
                             "View Queued Games",
                         ),
                     ],
@@ -208,7 +207,7 @@ class Game(commands.Cog):
                     content="Please select the game you want to quit",
                     ephemeral=True,
                     view=GameSelect(
-                        interaction.user.id, game_details, GameActions.quit_game, "Quit"
+                        interaction.user.id, game_details, GameAdmin.quit_game, "Quit"
                     ),
                 )
 

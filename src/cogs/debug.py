@@ -14,7 +14,7 @@ from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
 from games.game_handling.game_loading import GameLoading
-from user_interfaces.game_embeds import create_confirm_embed
+from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameConfirm, GameSelect
 
 
@@ -78,10 +78,12 @@ class Debug(commands.GroupCog, name="debug"):
             print("reject")
 
         await interaction.user.send(
-            embed=create_confirm_embed(
+            embed=game_info_embed(
                 interaction.user.id,
+                "Test",
                 fake_game,
                 GameLoading.get_game(fake_game.game).get_details(),
+                expire_message="Test",
             ),
             view=GameConfirm(test_accept, test_reject),
         )

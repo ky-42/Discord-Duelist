@@ -58,7 +58,7 @@ class TicTacToe(Game):
 
         if game_data.active_player == user_id:
             return DiscordMessage(
-                content="Press a button to play your move!",
+                content=f"Press a button to play your move! You are {'x' if game_data.player_square_type[str(user_id)] == 2 else 'o'}",
                 view=TicTacToeView(game_id, game_data, TicTacToe.play_move),
             )
         else:
@@ -73,6 +73,8 @@ class TicTacToe(Game):
         column: int,
         interaction: discord.Interaction,
     ):
+        await Game.remove_notification(game_id, interaction.user.id)
+
         game_data = game_info.GameData
 
         # Updates the board with the move
@@ -80,8 +82,12 @@ class TicTacToe(Game):
             str(game_data.active_player)
         ]
 
-        if check_win(game_data.active_board) != 0:
-            await TicTacToe.end_game(game_id, [game_data.active_player])
+        if (winner := check_win(game_data.active_board)) != 0:
+            if winner != -1:
+                await TicTacToe.end_game(game_id, [game_data.active_player])
+            else:
+                await TicTacToe.end_game(game_id, [])
+
         else:
             # Switches the active player
             game_data.active_player = (
