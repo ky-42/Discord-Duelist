@@ -10,14 +10,14 @@ from user_interfaces.utils import game_description_string
 # Stops circular import
 if TYPE_CHECKING:
     from data_wrappers.game_status import GameStatus
-    from games.utils import GameDetails
+    from games.utils import GameModuleDetails
 
 
 def game_info_embed(
     sending_to: int,
     title: str,
     game_state: GameStatus.Game,
-    game_details: GameDetails,
+    game_details: GameModuleDetails,
     expire_message: Optional[str] = None,
 ) -> discord.Embed:
     """
@@ -26,7 +26,7 @@ def game_info_embed(
 
     embed = discord.Embed(title=title)
 
-    embed.add_field(name="Game", value=f"{game_state.game}", inline=True)
+    embed.add_field(name="Game", value=f"{game_state.game_module_name}", inline=True)
 
     embed.add_field(
         name="Starting Player",
@@ -67,7 +67,7 @@ def game_summary_embed(
     Used when a game ends
     """
 
-    embed = discord.Embed(title=f"Game of {game_status.game} is over!")
+    embed = discord.Embed(title=f"Game of {game_status.game_module_name} is over!")
 
     winner_str = f"{', '.join(winners)}" if len(winners) else "None"
     embed.add_field(name="Winners", value=winner_str)

@@ -102,9 +102,9 @@ def get_game_info(
 
 
 @dataclass
-class GameDetails:
+class GameModuleDetails:
     """
-    Dataclass for holding the details of a game
+    Dataclass for holding the details of a game module
     """
 
     min_players: int
@@ -115,9 +115,9 @@ class GameDetails:
         return player_count >= self.min_players and player_count <= self.max_players
 
 
-class Game(ABC):
+class GameModule(ABC):
     """
-    Abstract class for defining a game
+    Abstract class for defining a game module
     """
 
     GameState = GameStatus.Game
@@ -125,9 +125,9 @@ class Game(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_details() -> GameDetails:
+    def get_details() -> GameModuleDetails:
         """
-        Returns a GameDetails object for the game
+        Returns a GameDetails object for the game module
         """
         pass
 

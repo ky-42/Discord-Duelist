@@ -8,7 +8,7 @@ from data_wrappers import game_status
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from exceptions import PlayerNotFound
-from games.game_handling.game_loading import GameLoading
+from games.game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed, game_summary_embed
 from user_interfaces.game_views import GameConfirm
 
@@ -31,7 +31,9 @@ class GameNotifications:
                     player_id,
                     f"{game_status.player_names[str(game_status.starting_player)]} wants to play a game!",
                     game_status,
-                    GameLoading.get_game(game_status.game).get_details(),
+                    GameModuleLoading.get_game_module(
+                        game_status.game_module_name
+                    ).get_details(),
                     f"Invite expires in {str(int((bot.game_requested_expiry.total_seconds()//60)%60))} minute",
                 ),
                 view=GameConfirm(
@@ -50,7 +52,9 @@ class GameNotifications:
                     player_id,
                     "Game Started",
                     game_status,
-                    GameLoading.get_game(game_status.game).get_details(),
+                    GameModuleLoading.get_game_module(
+                        game_status.game_module_name
+                    ).get_details(),
                     f"Game will be ended if {bot.game_no_move_expiry.days} days elapses between replys",
                 )
             )
@@ -65,7 +69,9 @@ class GameNotifications:
                     player_id,
                     "Game Queued",
                     game_status,
-                    GameLoading.get_game(game_status.game).get_details(),
+                    GameModuleLoading.get_game_module(
+                        game_status.game_module_name
+                    ).get_details(),
                 )
             )
 

@@ -13,7 +13,7 @@ from data_types import DiscordMessage, GameId, UserId
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
-from games.game_handling.game_loading import GameLoading
+from games.game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameConfirm, GameSelect
 
@@ -35,7 +35,7 @@ class TestingStateGeneration:
     ) -> GameStatus.Game:
         """Creates fake game status"""
 
-        game_details = GameLoading.get_game(game).get_details()
+        game_details = GameModuleLoading.get_game_module(game).get_details()
 
         fake_users = {
             str(randint(1, 10000)): f"user{x}"
@@ -82,7 +82,9 @@ class Debug(commands.GroupCog, name="debug"):
                 interaction.user.id,
                 "Test",
                 fake_game,
-                GameLoading.get_game(fake_game.game).get_details(),
+                GameModuleLoading.get_game_module(
+                    fake_game.game_module_name
+                ).get_details(),
                 expire_message="Test",
             ),
             view=GameConfirm(test_accept, test_reject),

@@ -11,7 +11,7 @@ from exceptions import GameNotFound, PlayerNotFound
 
 test_state = GameStatus.Game(
     status=0,
-    game="tic-tac-toe",
+    game_module_name="tic-tac-toe",
     starting_player=1,
     player_names={"1": "player_one", "2": "player_two"},
     all_players=[1, 2],

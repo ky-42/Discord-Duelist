@@ -11,7 +11,7 @@ from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
 from exceptions import GameNotFound
 from games.game_handling.game_admin import GameAdmin
-from games.game_handling.game_loading import GameLoading
+from games.game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_list_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, GetPlayers
 
@@ -32,14 +32,14 @@ class Game(commands.Cog):
 
         game_object = GameStatus.Game(
             status=0,
-            game=game_name,
+            game_module_name=game_name,
             starting_player=interaction.user.id,
             player_names={str(interaction.user.id): interaction.user.name},
             all_players=[interaction.user.id],
             unconfirmed_players=[],
         )
 
-        game_details = GameLoading.get_game(game_name).get_details()
+        game_module_details = GameModuleLoading.get_game_module(game_name).get_details()
 
         # Sends out UI to select players this is done to avoid the users
         # having to type out the names in inital interaction
@@ -47,8 +47,8 @@ class Game(commands.Cog):
         return await interaction.response.send_message(
             content="Please select the players you want to play with",
             view=GetPlayers(
-                game_details.min_players,
-                game_details.max_players,
+                game_module_details.min_players,
+                game_module_details.max_players,
                 interaction.user.id,
                 # Partial is used to pass the game object to the callback letting
                 # the ui be decoupled from the game object
@@ -65,7 +65,7 @@ class Game(commands.Cog):
         """
         Autocomplete for game options in the play command
         """
-        games_list = GameLoading.list_all_games()
+        games_list = GameModuleLoading.list_all_game_modules()
 
         # Gets list of game names that contain the active string
         partial_matches = list(

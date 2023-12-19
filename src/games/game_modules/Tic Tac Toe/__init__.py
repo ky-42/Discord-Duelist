@@ -4,21 +4,21 @@ from typing import Type
 import discord
 
 from data_types import DiscordMessage, GameId, UserId
-from games.utils import Game, GameDetails, GameInfo, get_game_info
+from games.utils import GameInfo, GameModule, GameModuleDetails, get_game_info
 
 from .data import TicTacToeData
 from .helpers import check_win
 from .views import TicTacToeView
 
 
-class TicTacToe(Game):
+class TicTacToe(GameModule):
     """
     Game of Tic Tac Toe
     """
 
     @staticmethod
-    def get_details() -> GameDetails:
-        return GameDetails(
+    def get_details() -> GameModuleDetails:
+        return GameModuleDetails(
             min_players=2,
             max_players=2,
             thumbnail_file_path=f"{os.path.dirname(__file__)}/images/thumb.jpg",
@@ -27,7 +27,7 @@ class TicTacToe(Game):
     @staticmethod
     @get_game_info
     async def start_game(
-        game_info: GameInfo[Game.GameState, None],
+        game_info: GameInfo[GameModule.GameState, None],
         game_id: GameId,
     ):
         game_state = game_info.GameState
@@ -42,15 +42,15 @@ class TicTacToe(Game):
             active_board=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         )
 
-        await Game.store_data(game_id, game_data)
+        await GameModule.store_data(game_id, game_data)
 
         # Send notification to first player
-        await Game.send_notification(game_id, game_data.active_player)
+        await GameModule.send_notification(game_id, game_data.active_player)
 
     @staticmethod
     @get_game_info
     async def reply(
-        game_info: GameInfo[Game.GameState, TicTacToeData],
+        game_info: GameInfo[GameModule.GameState, TicTacToeData],
         game_id: GameId,
         user_id: UserId,
     ):
@@ -67,13 +67,13 @@ class TicTacToe(Game):
     @staticmethod
     @get_game_info
     async def play_move(
-        game_info: GameInfo[Game.GameState, TicTacToeData],
+        game_info: GameInfo[GameModule.GameState, TicTacToeData],
         game_id: GameId,
         row: int,
         column: int,
         interaction: discord.Interaction,
     ):
-        await Game.remove_notification(game_id, interaction.user.id)
+        await GameModule.remove_notification(game_id, interaction.user.id)
 
         game_data = game_info.GameData
 
@@ -96,9 +96,9 @@ class TicTacToe(Game):
                 else game_data.player_order[1]
             )
 
-            await Game.store_data(game_id, game_data)
-            await Game.send_notification(game_id, game_data.active_player)
+            await GameModule.store_data(game_id, game_data)
+            await GameModule.send_notification(game_id, game_data.active_player)
 
 
-def load() -> Type[Game]:
+def load() -> Type[GameModule]:
     return TicTacToe

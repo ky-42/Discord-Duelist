@@ -7,8 +7,8 @@ import pytest
 from dotenv import load_dotenv
 from sqlalchemy import over
 
-from games.game_handling.game_loading import GameLoading
-from games.utils import Game
+from games.game_handling.game_module_loading import GameModuleLoading
+from games.utils import GameModule
 
 load_dotenv()
 games_dir = os.getenv("GAMES_DIR")
@@ -57,50 +57,50 @@ class TestGameLoading:
         def decorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                GameLoading._GameLoading__clear_time = time  # type: ignore
+                GameModuleLoading._GameLoading__clear_time = time  # type: ignore
                 func(*args, **kwargs)
-                GameLoading._GameLoading__clear_time = timedelta(minutes=15)  # type: ignore
+                GameModuleLoading._GameLoading__clear_time = timedelta(minutes=15)  # type: ignore
 
             return wrapper
 
         return decorator
 
     def test_list_games(self):
-        assert os.listdir(games_dir) == GameLoading.list_all_games()
+        assert os.listdir(games_dir) == GameModuleLoading.list_all_game_modules()
 
     @create_fake_game
     def test_wrong_list_games(self):
-        assert os.listdir(games_dir) != GameLoading.list_all_games()
+        assert os.listdir(games_dir) != GameModuleLoading.list_all_game_modules()
 
     def test_get_known_game(self):
-        loaded_module = GameLoading.get_game("Tic Tac Toe")
+        loaded_module = GameModuleLoading.get_game_module("Tic Tac Toe")
 
-        assert type(loaded_module) == type(Game)
+        assert type(loaded_module) == type(GameModule)
 
     def test_get_unknown_game(self):
         with pytest.raises(KeyError):
-            GameLoading.get_game("Unknown Game")
+            GameModuleLoading.get_game_module("Unknown Game")
 
     @create_fake_game
     def test_get_improper_game(self):
         with pytest.raises(AttributeError):
-            GameLoading.get_game("Fake Game")
+            GameModuleLoading.get_game_module("Fake Game")
 
     def test_check_right_game_details(self):
-        assert GameLoading.check_game_details("Tic Tac Toe", 2)
+        assert GameModuleLoading.check_game_module_details("Tic Tac Toe", 2)
 
     def test_check_high_game_details(self):
-        assert not GameLoading.check_game_details("Tic Tac Toe", 3)
+        assert not GameModuleLoading.check_game_module_details("Tic Tac Toe", 3)
 
     def test_check_low_game_details(self):
-        assert not GameLoading.check_game_details("Tic Tac Toe", 1)
+        assert not GameModuleLoading.check_game_module_details("Tic Tac Toe", 1)
 
     @change_clear_time(timedelta(seconds=0.5))
     def tests_clear_games(self):
-        GameLoading.get_game("Tic Tac Toe")
+        GameModuleLoading.get_game_module("Tic Tac Toe")
 
         time.sleep(1)
 
-        GameLoading.clear_old_games()
+        GameModuleLoading.clear_old_games_modules()
 
-        assert GameLoading._GameLoading__loaded_games["Tic Tac Toe"] == None  # type: ignore
+        assert GameModuleLoading._GameLoading__loaded_games["Tic Tac Toe"] == None  # type: ignore

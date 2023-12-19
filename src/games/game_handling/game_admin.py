@@ -6,14 +6,16 @@ from data_wrappers import GameData, GameStatus, UserStatus
 from games.game_handling.game_notifications import GameNotifications
 from user_interfaces.game_embeds import game_info_embed, game_summary_embed
 
-from .game_loading import GameLoading
+from .game_module_loading import GameModuleLoading
 
 
 class GameAdmin:
     @staticmethod
     async def players_selected(game_status: GameStatus.Game, players: dict[str, str]):
         # Add 1 to the player count to include the player who started the game
-        if GameLoading.check_game_details(game_status.game, len(players) + 1):
+        if GameModuleLoading.check_game_module_details(
+            game_status.game_module_name, len(players) + 1
+        ):
             for player_id, player_name in players.items():
                 game_status.player_names[player_id] = player_name
                 game_status.all_players.append(int(player_id))
@@ -53,7 +55,9 @@ class GameAdmin:
         if await UserStatus.check_users_are_ready(game_id, game_status.all_players):
             await GameNotifications.game_start(game_id)
 
-            game_module = GameLoading.get_game(game_status.game)
+            game_module = GameModuleLoading.get_game_module(
+                game_status.game_module_name
+            )
 
             await GameStatus.set_game_in_progress(game_id)
             await GameStatus.set_expiry(game_id, bot.game_no_move_expiry)
@@ -71,9 +75,9 @@ class GameAdmin:
 
         await GameStatus.set_expiry(game_id, bot.game_no_move_expiry)
 
-        return await GameLoading.get_game(only_game_details.game).reply(
-            game_id, replying_user
-        )
+        return await GameModuleLoading.get_game_module(
+            only_game_details.game_module_name
+        ).reply(game_id, replying_user)
 
     @staticmethod
     async def quit_game(game_id: GameId, quiting_user: UserId) -> DiscordMessage:

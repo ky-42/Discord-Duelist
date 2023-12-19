@@ -40,8 +40,8 @@ class GameStatus(RedisDb):
         status[int]:
             0 = unconfirmed | 1 = confirmed but queued | 2 = in progress
 
-        game[str]:
-            Name of game type
+        game_module_name[str]:
+            Name of game module
 
         starting_player[int]:
             Player id of player who started the game
@@ -57,7 +57,7 @@ class GameStatus(RedisDb):
         """
 
         status: Literal[0, 1, 2]
-        game: str
+        game_module_name: str
         starting_player: int
         player_names: Dict[str, str]
         all_players: List[UserId]
