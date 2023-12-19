@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional
 
 import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
@@ -143,29 +143,35 @@ class UserStatus:
     async def clear_game(
         game_id: GameId,
         user_ids: List[UserId],
-    ) -> List[GameId]:
+    ) -> tuple[List[GameId], List[UserId]]:
         """
         Removes a game from all users active_games and queued_games
 
-        Returns a list of game_ids that were moved from queued_games to active_games
+        Returns tuple:
+            Index 0 = a list of game_ids that were moved from queued_games to active_games
+            Index 1 = List of users who had a notification removed
         """
 
         moved_up_games: List[GameId] = []
+        notifications_removed_from: List[UserId] = []
 
         for user in user_ids:
             try:
                 # Removes the game and stores the ids of the games that moved from queued_games to active_games
-                if move_up_ids := await UserStatus.__remove_game(game_id, user):
+                side_effect_data = await UserStatus.__remove_game(game_id, user)
+                if move_up_ids := side_effect_data[0]:
                     for move_up_id in move_up_ids:
                         if move_up_id not in moved_up_games:
                             moved_up_games.append(move_up_id)
+                if side_effect_data[1]:
+                    notifications_removed_from.append(user)
 
             except GameNotFound:
                 print(f"User {user} was not in game {game_id}")
             except PlayerNotFound:
                 print(f"User {user} was not found")
 
-        return moved_up_games
+        return (moved_up_games, notifications_removed_from)
 
     @staticmethod
     @pipeline_watch(__pool, "user_id")
@@ -173,13 +179,15 @@ class UserStatus:
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
         user_id: UserId,
-    ) -> Optional[List[GameId]]:
+    ) -> tuple[Optional[List[GameId]], bool]:
         """
         Removes a game from a user's active_games or queued_games
 
         If the user is not in the game, raises ActiveGameNotFound
 
-        Returns the ids of any queued games that was moved to active_games
+        Returns tuple:
+            Index 0: the ids of any queued games that was moved to active_games
+            Index 1: notification that was removed
         """
 
         user_status = await pipe.json().get(user_id)
@@ -204,10 +212,13 @@ class UserStatus:
 
         pipe.json().arrpop(str(user_id), f".{game_type}", game_index)
 
+        removed_notification: bool = False
         if game_id in user_status.notifications:
             pipe.json().arrpop(
                 str(user_id), ".notifications", user_status.notifications.index(game_id)
             )
+
+            removed_notification = True
 
         if (
             # Its == 1 because this uses outdated data from before we delete one
@@ -220,9 +231,12 @@ class UserStatus:
 
         await pipe.execute()
 
+        moved_up_games: Optional[List[GameId]] = None
         if not deleted:
             # If the user is still in the db, move up a game from queued_games to active_games
-            return await UserStatus.__move_up_games(user_id)
+            moved_up_games = await UserStatus.__move_up_games(user_id)
+
+        return (moved_up_games, removed_notification)
 
     @staticmethod
     @pipeline_watch(__pool, "user_id")
@@ -281,18 +295,6 @@ class UserStatus:
             await pipe.execute()
 
     @staticmethod
-    async def amount_of_notifications(user_id: UserId) -> int:
-        """
-        Returns the amount of notifications a user has
-
-        If the user does not exist, returns 0
-        """
-
-        if active_status := await UserStatus.get(user_id):
-            return len(active_status.notifications)
-        return 0
-
-    @staticmethod
     @pipeline_watch(__pool, "user_id")
     async def remove_notification(
         pipe: redis_async_client.Pipeline, game_id: GameId, user_id: UserId
@@ -321,20 +323,9 @@ class UserStatus:
         await UserStatus.__pool.json().set(user_id, ".notification_id", message_id)
 
     @staticmethod
-    async def get_notification_id(user_id: UserId) -> Optional[MessageId]:
-        """
-        Gets the notification id of a user
-        """
-
-        if notification_id := await UserStatus.__pool.json().get(
-            user_id, ".notification_id"
-        ):
-            return notification_id
-
-    @staticmethod
     async def remove_notification_id(user_id: UserId) -> None:
         """
         Removes the notification id of a user
         """
 
-        await UserStatus.__pool.json().delete(user_id, ".notification_id")
+        await UserStatus.__pool.json().set(user_id, ".notification_id", None)

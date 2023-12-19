@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Callable, Dict, Optional
+from typing import Awaitable, Callable, Dict
 
 import discord
 from discord import ui
@@ -19,12 +19,12 @@ class GetPlayers(ui.View):
         min: int,
         max: int,
         starting_player: UserId,
-        players_selected_func: Callable[[Dict[str, str]], Awaitable[None]],
+        players_selected_callback: Callable[[Dict[str, str]], Awaitable[None]],
     ):
         super().__init__()
 
         self.starting_player = starting_player
-        self.players_selected_callback = players_selected_func
+        self.players_selected_callback = players_selected_callback
 
         # Creates the dropdown menu
         self.user_select = ui.UserSelect(
@@ -82,18 +82,18 @@ class GameConfirm(discord.ui.View):
 
     def __init__(
         self,
-        accept_func: Callable[[], Awaitable[None]],
-        reject_func: Callable[[], Awaitable[None]],
+        accept_callback: Callable[[], Awaitable[None]],
+        reject_callback: Callable[[], Awaitable[None]],
     ):
         super().__init__()
 
-        self.accept_func = accept_func
-        self.reject_func = reject_func
+        self.accept_callback = accept_callback
+        self.reject_callback = reject_callback
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button):
         try:
-            await self.accept_func()
+            await self.accept_callback()
         except Exception as e:
             await interaction.response.send_message(content=str(e), ephemeral=True)
         else:
@@ -102,7 +102,7 @@ class GameConfirm(discord.ui.View):
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, _: discord.ui.Button):
         try:
-            await self.reject_func()
+            await self.reject_callback()
         except Exception as e:
             await interaction.response.send_message(content=str(e), ephemeral=True)
         else:
@@ -119,13 +119,13 @@ class GameSelect(ui.View):
         self,
         user_id: UserId,
         game_list: Dict[GameId, GameStatus.Game],
-        selected_func: Callable[[GameId, UserId], Awaitable[DiscordMessage]],
+        selected_callback: Callable[[GameId, UserId], Awaitable[DiscordMessage]],
         button_label: str,
     ):
         super().__init__()
 
         self.user_id = user_id
-        self.reply_func = selected_func
+        self.reply_callback = selected_callback
 
         self.add_dropdown(game_list)
         self.add_select_button(button_label)
@@ -161,7 +161,7 @@ class GameSelect(ui.View):
 
     async def select(self, interaction: discord.Interaction):
         if len(self.game_dropdown.values) > 0:
-            game_reply = await self.reply_func(
+            game_reply = await self.reply_callback(
                 self.game_dropdown.values[0], interaction.user.id
             )
             await interaction.response.send_message(**game_reply.for_send())

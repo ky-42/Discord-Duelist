@@ -12,10 +12,12 @@ hypothesis==6.84.3
 idna==3.4
 iniconfig==2.0.0
 multidict==6.0.4
+nodeenv==1.8.0
 packaging==23.1
 Pillow==9.4.0
 pluggy==1.0.0
-pytest==7.3.1
+pyright==1.1.324
+pytest==7.4.3
 pytest-asyncio==0.21.0
 pytest-mock==3.11.1
 python-dotenv==0.21.0

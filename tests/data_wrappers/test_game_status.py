@@ -123,7 +123,7 @@ class TestGameStatus:
         callback_id = "wrong"
         callback_state: GameStatus.Game | None = None
 
-        @GameStatus.is_expire_handler
+        @GameStatus.handle_game_expire
         async def shadowkey_callback(game_id: str, game_state: GameStatus.Game):
             nonlocal callback_ran
             callback_ran = True

@@ -1,5 +1,6 @@
 import functools
 import inspect
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
@@ -13,11 +14,11 @@ from typing import (
     get_args,
 )
 
-from bot import bot
 from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus
 from data_wrappers.user_status import UserStatus
 from games.game_handling.game_admin import GameAdmin
+from games.game_handling.game_notifications import GameNotifications
 
 # Generics for the GameInfo class
 S = TypeVar("S", bound=GameStatus.Game | None)
@@ -157,37 +158,20 @@ class Game(ABC):
         pass
 
     @staticmethod
-    async def send_notification(game_id: GameId, player_id: UserId) -> None:
+    async def send_notification(game_id: GameId, player_id: UserId):
         """
         Sends a message that its the players turn
         """
 
         await UserStatus.add_notifiction(game_id, player_id)
+        new_message_id = await GameNotifications.add_game_notification(player_id)
+        await UserStatus.set_notification_id(player_id, new_message_id)
 
-        user_dm_channel = await bot.get_dm_channel(player_id)
-
-        # Deletes the old notification message if it exists
-        if notification_id := await UserStatus.get_notification_id(player_id):
-            old_notification_message = await user_dm_channel.fetch_message(
-                notification_id
-            )
-            await old_notification_message.delete()
-
-        notification_amount = await UserStatus.amount_of_notifications(player_id)
-
-        # Needs two different messages cause when there is only one notification
-        # the reply command will automatically reply to the game that sent the notification
-        if notification_amount == 1:
-            new_message = await user_dm_channel.send(
-                "You have a notification! Use the /reply command to play!"
-            )
-        else:
-            new_message = await user_dm_channel.send(
-                f"You have {notification_amount} notifications! Use the /reply command to view them!"
-            )
-
-        # Used to delete the notification message when a new one is sent
-        await UserStatus.set_notification_id(player_id, new_message.id)
+    @staticmethod
+    async def remove_notification(game_id: GameId, player_id: UserId):
+        await UserStatus.remove_notification(game_id, player_id)
+        if await GameNotifications.remove_game_notification(player_id):
+            await UserStatus.remove_notification_id(player_id)
 
     @staticmethod
     async def store_data(game_id: GameId, game_data: Type[GameData.GDC]) -> None:
@@ -197,11 +181,9 @@ class Game(ABC):
         await GameData.store_data(game_id, game_data)
 
     @staticmethod
-    @get_game_info
     async def end_game(
-        game_info: GameInfo[GameState, None],
         game_id: GameId,
-        winner: list[int],
+        winner_ids: list[int],
     ):
         """
         Used to end a game
@@ -209,22 +191,6 @@ class Game(ABC):
         Param:
             winner - List of user ids who won pass empty list for a tie
         """
-        game_state = game_info.GameState
 
-        for player in game_state.all_players:
-            if len(winner):
-                if player in winner:
-                    await (await bot.get_user(player)).send(
-                        f"Game of {game_state.game} is over! You have won!"
-                    )
-
-                else:
-                    await (await bot.get_user(player)).send(
-                        f"Game of {game_state.game} is over! The winner is {game_state.player_names[str(winner[0])]}!"
-                    )
-            else:
-                await (await bot.get_user(player)).send(
-                    f"Game of {game_state.game} is over! Its a tie!"
-                )
-
+        await GameNotifications.game_end(game_id, winner_ids)
         await GameAdmin.cancel_game(game_id)

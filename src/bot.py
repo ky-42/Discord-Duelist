@@ -4,7 +4,6 @@ from datetime import timedelta
 import discord
 from discord.ext import commands
 
-from data_wrappers.game_status import GameStatus
 from exceptions import PlayerNotFound
 
 """
@@ -40,8 +39,7 @@ class Bot(commands.Bot):
         if os.getenv("TESTING"):
             await self.load_extension("cogs.debug")
 
-        # Syncs commands to mals server
-        MY_GUILD = discord.Object(id=715439787288428605)
+        MY_GUILD = discord.Object(id=1186488380612157441)
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 

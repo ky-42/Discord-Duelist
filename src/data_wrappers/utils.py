@@ -1,7 +1,19 @@
+import asyncio
 import functools
 import inspect
 import os
-from typing import Awaitable, Callable, Concatenate, ParamSpec, Type, TypeVar
+import sys
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Concatenate,
+    Dict,
+    Optional,
+    ParamSpec,
+    Type,
+    TypeVar,
+)
 
 import redis
 import redis.asyncio as redis_sync
@@ -119,6 +131,64 @@ class RedisDb:
 
     __pool = redis_sync.Redis(db=0)
 
+    # Instance of pubsub task. Used to handle shadow key expire events
+    __pubsub_task: Optional[asyncio.Task] = None
+
+    __pubsub_callbacks: Dict[str, Callable[[Any], Awaitable[None]]] = {}
+
     @staticmethod
     async def flush_db():
         await RedisDb.__pool.flushall()
+
+    @staticmethod
+    async def __recreate_pubsub_task():
+        if RedisDb.__pubsub_task != None:
+            RedisDb.__pubsub_task.cancel()
+        else:
+            await RedisDb.__pool.config_set("notify-keyspace-events", "Ex")
+
+        new_pubsub_obj = RedisDb.__pool.pubsub()
+        await new_pubsub_obj.psubscribe(**RedisDb.__pubsub_callbacks)
+        RedisDb.__pubsub_task = asyncio.create_task(new_pubsub_obj.run())
+
+    @staticmethod
+    @is_main_instance
+    def is_pubsub_callback(channel_pattern: str):
+        """
+        Only one function can be registerd to a channel
+        """
+
+        def real_decorator(
+            fn: Callable[[Any], Awaitable[None]]
+        ) -> Callable[[Any], Awaitable[None]]:
+            RedisDb.__pubsub_callbacks[channel_pattern] = fn
+
+            try:
+                asyncio.get_running_loop().create_task(RedisDb.__recreate_pubsub_task())
+            except:
+                asyncio.new_event_loop().run_until_complete(
+                    RedisDb.__recreate_pubsub_task()
+                )
+
+            return fn
+
+        return real_decorator
+
+    @staticmethod
+    @is_main_instance
+    async def add_pubsub_callback(
+        channel_pattern: str, fn: Callable[[Dict[str, str]], Awaitable[None]]
+    ):
+        """
+        Only one function can be registerd to a channel
+        """
+        RedisDb.__pubsub_callbacks[channel_pattern] = fn
+
+        await RedisDb.__recreate_pubsub_task()
+
+    @staticmethod
+    @is_main_instance
+    async def remove_pubsub_callback(channel_pattern: str):
+        del RedisDb.__pubsub_callbacks[channel_pattern]
+
+        await RedisDb.__recreate_pubsub_task()
