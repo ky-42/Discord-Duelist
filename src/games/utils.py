@@ -164,12 +164,14 @@ class Game(ABC):
         """
 
         await UserStatus.add_notifiction(game_id, player_id)
-        await GameNotifications.add_game_notification(player_id)
+        new_message_id = await GameNotifications.add_game_notification(player_id)
+        await UserStatus.set_notification_id(player_id, new_message_id)
 
     @staticmethod
     async def remove_notification(game_id: GameId, player_id: UserId):
         await UserStatus.remove_notification(game_id, player_id)
-        await GameNotifications.remove_game_notification(player_id)
+        if await GameNotifications.remove_game_notification(player_id):
+            await UserStatus.remove_notification_id(player_id)
 
     @staticmethod
     async def store_data(game_id: GameId, game_data: Type[GameData.GDC]) -> None:
@@ -190,5 +192,5 @@ class Game(ABC):
             winner - List of user ids who won pass empty list for a tie
         """
 
-        await GameNotifications.send_game_end(game_id, winner_ids)
+        await GameNotifications.game_end(game_id, winner_ids)
         await GameAdmin.cancel_game(game_id)

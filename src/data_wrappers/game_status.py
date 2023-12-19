@@ -76,7 +76,7 @@ class GameStatus(RedisDb):
             )
 
     # Callbacks for when games expire
-    __expire_callbacks: dict[str, Callable[[GameId, Game], Awaitable[None]]] = {}
+    __expire_callbacks: dict[str, Callable[[GameId], Awaitable[None]]] = {}
 
     @staticmethod
     def __get_shadow_key(game_id: GameId) -> str:
@@ -202,36 +202,12 @@ class GameStatus(RedisDb):
 
     @staticmethod
     def handle_game_expire(
-        fn: Callable[[GameId, Game], Awaitable[None]]
-    ) -> Callable[[GameId, Game], Awaitable[None]]:
+        fn: Callable[[GameId], Awaitable[None]]
+    ) -> Callable[[GameId], Awaitable[None]]:
         if (name := fn.__name__) not in GameStatus.__expire_callbacks:
             GameStatus.__expire_callbacks[name] = fn
 
         return fn
-
-    @staticmethod
-    @is_main_instance
-    async def __add_expire_handler(
-        game_expire_callback: Callable[[GameId, Game], Awaitable[None]]
-    ):
-        """
-        Adds a callback to be called when a game expires
-
-        IMPORTANT: For the games to expire properly the start_expire_listener function
-        needs to be called or else any added functions will not be ran
-
-        game_expire_callback[Callable[[GameId, GameState], Awaitable[None]]]:
-            The passed function must accept the GameId of the expired game
-            as its first parameter and the GameState of the expired game as
-            its second parameter. It must also be asyncronous and return nothing
-        """
-
-        if (name := game_expire_callback.__name__) not in GameStatus.__expire_callbacks:
-            # Stores callback by name
-            GameStatus.__expire_callbacks[name] = game_expire_callback
-
-        else:
-            raise ValueError("Callback of same name already exists")
 
     @staticmethod
     @RedisDb.is_pubsub_callback(f"__keyevent@{__db_number}__:expired")
@@ -256,10 +232,9 @@ class GameStatus(RedisDb):
                 game_id = msg.split(":")[1]
 
                 expired_game_data = await GameStatus.get(game_id)
-                await GameStatus.delete(game_id)
 
                 for callback in GameStatus.__expire_callbacks.values():
-                    await callback(game_id, expired_game_data)
+                    await callback(game_id)
             else:
                 print("Not shadow key")
 

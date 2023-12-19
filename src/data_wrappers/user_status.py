@@ -329,7 +329,3 @@ class UserStatus:
         """
 
         await UserStatus.__pool.json().set(user_id, ".notification_id", None)
-
-    __removed_notification_callback: Optional[
-        Callable[[UserId], Awaitable[None]]
-    ] = None

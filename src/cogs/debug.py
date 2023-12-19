@@ -179,6 +179,15 @@ class Debug(commands.GroupCog, name="debug"):
         await RedisDb.flush_db()
         await interaction.response.send_message(content="Done")
 
+    @app_commands.command(
+        name="set-game-expire", description="Changes the expire time of the game"
+    )
+    async def set_game_expire(
+        self, interaction: discord.Interaction, game_id: GameId, seconds: int
+    ):
+        await GameStatus.set_expiry(game_id, timedelta(seconds=seconds))
+        await interaction.response.send_message("Done")
+
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Debug())
