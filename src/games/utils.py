@@ -107,12 +107,12 @@ class GameModuleDetails:
     Dataclass for holding the details of a game module
     """
 
-    min_players: int
-    max_players: int
+    min_users: int
+    max_users: int
     thumbnail_file_path: str
 
-    def check_player_count(self, player_count):
-        return player_count >= self.min_players and player_count <= self.max_players
+    def check_user_count(self, user_count):
+        return user_count >= self.min_users and user_count <= self.max_users
 
 
 class GameModule(ABC):
@@ -152,26 +152,26 @@ class GameModule(ABC):
         """
         Used to play a move in a game
 
-        All data from the interactions by players
+        All data from the interactions by users
         in a game is passed to this method
         """
         pass
 
     @staticmethod
-    async def send_notification(game_id: GameId, player_id: UserId):
+    async def send_notification(game_id: GameId, user_id: UserId):
         """
-        Sends a message that its the players turn
+        Sends a message that its the users turn
         """
 
-        await UserStatus.add_notifiction(game_id, player_id)
-        new_message_id = await GameNotifications.add_game_notification(player_id)
-        await UserStatus.set_notification_id(player_id, new_message_id)
+        await UserStatus.add_notifiction(game_id, user_id)
+        new_message_id = await GameNotifications.add_game_notification(user_id)
+        await UserStatus.set_notification_id(user_id, new_message_id)
 
     @staticmethod
-    async def remove_notification(game_id: GameId, player_id: UserId):
-        await UserStatus.remove_notification(game_id, player_id)
-        if await GameNotifications.remove_game_notification(player_id):
-            await UserStatus.remove_notification_id(player_id)
+    async def remove_notification(game_id: GameId, user_id: UserId):
+        await UserStatus.remove_notification(game_id, user_id)
+        if await GameNotifications.remove_game_notification(user_id):
+            await UserStatus.remove_notification_id(user_id)
 
     @staticmethod
     async def store_data(game_id: GameId, game_data: Type[GameData.GDC]) -> None:

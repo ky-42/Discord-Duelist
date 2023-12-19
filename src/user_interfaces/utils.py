@@ -15,7 +15,7 @@ def game_description_string(
     user_names = ", ".join(
         [
             name.capitalize()
-            for user_id, name in game_details.player_names.items()
+            for user_id, name in game_details.usernames.items()
             if asking_user != user_id
         ]
     )

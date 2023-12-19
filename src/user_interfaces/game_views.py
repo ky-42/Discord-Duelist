@@ -9,22 +9,22 @@ from data_wrappers.game_status import GameStatus
 from user_interfaces.utils import game_description_string
 
 
-class GetPlayers(ui.View):
+class GetUsers(ui.View):
     """
-    Dropdown menu to select players for a game
+    Dropdown menu to select users for a game
     """
 
     def __init__(
         self,
         min: int,
         max: int,
-        starting_player: UserId,
-        players_selected_callback: Callable[[Dict[str, str]], Awaitable[None]],
+        starting_user: UserId,
+        users_selected_callback: Callable[[Dict[str, str]], Awaitable[None]],
     ):
         super().__init__()
 
-        self.starting_player = starting_player
-        self.players_selected_callback = players_selected_callback
+        self.starting_user = starting_user
+        self.users_selected_callback = users_selected_callback
 
         # Creates the dropdown menu
         self.user_select = ui.UserSelect(
@@ -35,24 +35,24 @@ class GetPlayers(ui.View):
         )
         self.add_item(self.user_select)
 
-        # Sets a callback when a player selects a user but doesent confirm
+        # Sets a callback when a user selects a user but doesent confirm
         self.user_select.callback = self.user_select_callback
 
     async def user_select_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
     @ui.button(label="Invite Players", style=discord.ButtonStyle.green, row=1)
-    async def selected_players(self, interaction: discord.Interaction, _: ui.Button):
-        if interaction.user.id == self.starting_player:
+    async def selected_users(self, interaction: discord.Interaction, _: ui.Button):
+        if interaction.user.id == self.starting_user:
             # Stops user from inviting themselves
-            if self.starting_player in [user.id for user in self.user_select.values]:
+            if self.starting_user in [user.id for user in self.user_select.values]:
                 return await interaction.response.send_message(
                     "Stop trying to play with yourself", ephemeral=True, delete_after=5
                 )
 
             try:
-                await self.players_selected_callback(
-                    {str(player.id): player.name for player in self.user_select.values}
+                await self.users_selected_callback(
+                    {str(user.id): user.name for user in self.user_select.values}
                 )
             except Exception as e:
                 await interaction.response.send_message(content=str(e), ephemeral=True)

@@ -7,7 +7,7 @@ from data_types import GameId, MessageId, UserId
 from data_wrappers import game_status
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
-from exceptions import PlayerNotFound
+from exceptions import UserNotFound
 from games.game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed, game_summary_embed
 from user_interfaces.game_views import GameConfirm
@@ -16,20 +16,20 @@ from user_interfaces.game_views import GameConfirm
 class GameNotifications:
     @staticmethod
     async def game_confirms(
-        player_ids: List[int],
+        user_ids: List[int],
         game_id: GameId,
         accept_callback: Callable[[UserId], Awaitable[None]],
         reject_callback: Callable[[], Awaitable[None]],
     ) -> None:
-        for player_id in player_ids:
-            # Gets the dm channel of the player to send the confirmation over
-            dm = await bot.get_dm_channel(player_id)
+        for user_id in user_ids:
+            # Gets the dm channel of the user to send the confirmation over
+            dm = await bot.get_dm_channel(user_id)
             game_status = await GameStatus.get(game_id)
 
             await dm.send(
                 embed=game_info_embed(
-                    player_id,
-                    f"{game_status.player_names[str(game_status.starting_player)]} wants to play a game!",
+                    user_id,
+                    f"{game_status.usernames[str(game_status.starting_user)]} wants to play a game!",
                     game_status,
                     GameModuleLoading.get_game_module(
                         game_status.game_module_name
@@ -37,7 +37,7 @@ class GameNotifications:
                     f"Invite expires in {str(int((bot.game_requested_expiry.total_seconds()//60)%60))} minute",
                 ),
                 view=GameConfirm(
-                    functools.partial(accept_callback, player_id), reject_callback
+                    functools.partial(accept_callback, user_id), reject_callback
                 ),
                 delete_after=bot.game_requested_expiry.seconds,
             )
@@ -46,10 +46,10 @@ class GameNotifications:
     async def game_start(game_id: GameId):
         game_status = await GameStatus.get(game_id)
 
-        for player_id in game_status.all_players:
-            await (await bot.get_user(int(player_id))).send(
+        for user_id in game_status.all_users:
+            await (await bot.get_user(int(user_id))).send(
                 embed=game_info_embed(
-                    player_id,
+                    user_id,
                     "Game Started",
                     game_status,
                     GameModuleLoading.get_game_module(
@@ -63,10 +63,10 @@ class GameNotifications:
     async def game_queued(game_id: GameId):
         game_status = await GameStatus.get(game_id)
 
-        for player_id in game_status.all_players:
-            await (await bot.get_user(int(player_id))).send(
+        for user_id in game_status.all_users:
+            await (await bot.get_user(int(user_id))).send(
                 embed=game_info_embed(
-                    player_id,
+                    user_id,
                     "Game Queued",
                     game_status,
                     GameModuleLoading.get_game_module(
@@ -83,9 +83,9 @@ class GameNotifications:
             return f"You have a notification! Use the /reply command to view it!"
 
     @staticmethod
-    async def add_game_notification(player_id: UserId) -> MessageId:
-        user = await UserStatus.get(player_id)
-        user_dm_channel = await bot.get_dm_channel(player_id)
+    async def add_game_notification(user_id: UserId) -> MessageId:
+        user = await UserStatus.get(user_id)
+        user_dm_channel = await bot.get_dm_channel(user_id)
 
         if user:
             if user.notification_id:
@@ -109,16 +109,16 @@ class GameNotifications:
             return new_message.id
 
         else:
-            raise PlayerNotFound(player_id)
+            raise UserNotFound(user_id)
 
     @staticmethod
-    async def remove_game_notification(player_id: UserId) -> bool:
+    async def remove_game_notification(user_id: UserId) -> bool:
         """
         Returns bool: True means message was delete
         """
 
-        user = await UserStatus.get(player_id)
-        user_dm_channel = await bot.get_dm_channel(player_id)
+        user = await UserStatus.get(user_id)
+        user_dm_channel = await bot.get_dm_channel(user_id)
 
         if user:
             if user.notification_id:
@@ -144,7 +144,7 @@ class GameNotifications:
 
         user_objects = {
             game_user_id: await bot.get_user(game_user_id)
-            for game_user_id in cancelled_game.all_players
+            for game_user_id in cancelled_game.all_users
         }
 
         for game_user_id, game_user_object in user_objects.items():
@@ -152,7 +152,7 @@ class GameNotifications:
                 await game_user_object.send(
                     embed=game_summary_embed(
                         [],
-                        list(cancelled_game.player_names.values()),
+                        list(cancelled_game.usernames.values()),
                         cancelled_game,
                         f"Game was cancelled because {user_objects[quiting_user].name} quit",
                     )
@@ -162,13 +162,13 @@ class GameNotifications:
     async def game_expired(game_id: GameId):
         expired_game = await GameStatus.get(game_id)
 
-        for player_id in expired_game.all_players:
-            dm = await bot.get_dm_channel(player_id)
+        for user_id in expired_game.all_users:
+            dm = await bot.get_dm_channel(user_id)
 
             await dm.send(
                 embed=game_summary_embed(
                     [],
-                    list(expired_game.player_names.values()),
+                    list(expired_game.usernames.values()),
                     expired_game,
                     f"Game ended because no one played a move for {bot.game_no_move_expiry.days} days",
                 )
@@ -181,9 +181,9 @@ class GameNotifications:
     ):
         game_status = await GameStatus.get(game_id)
 
-        for player in game_status.all_players:
+        for user in game_status.all_users:
             if len(winner_ids):
-                if player in winner_ids:
+                if user in winner_ids:
                     footer = "You won!"
                 else:
                     footer = "You lost" + random.choice(
@@ -197,18 +197,18 @@ class GameNotifications:
             else:
                 footer = "Its a tie!"
 
-            # Creats list of names of winners and other players needed for the summary embed
-            all_player_ids = game_status.all_players.copy()
+            # Creats list of names of winners and other users needed for the summary embed
+            all_user_ids = game_status.all_users.copy()
             winner_names = []
-            for player_id in winner_ids:
-                all_player_ids.remove(player_id)
-                winner_names.append(game_status.player_names[str(player_id)])
-            other_players_names = [
-                game_status.player_names[str(player_id)] for player_id in all_player_ids
+            for user_id in winner_ids:
+                all_user_ids.remove(user_id)
+                winner_names.append(game_status.usernames[str(user_id)])
+            other_users_names = [
+                game_status.usernames[str(user_id)] for user_id in all_user_ids
             ]
 
-            await (await bot.get_user(player)).send(
+            await (await bot.get_user(user)).send(
                 embed=game_summary_embed(
-                    winner_names, other_players_names, game_status, footer
+                    winner_names, other_users_names, game_status, footer
                 )
             )

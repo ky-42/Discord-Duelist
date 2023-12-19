@@ -5,7 +5,7 @@ import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
 
 from data_types import GameId, MessageId, UserId
-from exceptions import GameNotFound, PlayerNotFound
+from exceptions import GameNotFound, UserNotFound
 
 from .utils import pipeline_watch
 
@@ -13,7 +13,7 @@ from .utils import pipeline_watch
 class UserStatus:
 
     """
-    API wrapper for reddis db which handles the status of players
+    API wrapper for reddis db which handles the status of users
 
     All data in the db is in the form
     UserId: UserState
@@ -125,7 +125,7 @@ class UserStatus:
         """
         Checks if all users are ready to start a game
 
-        raises PlayerNotFound if a user is not in the db
+        raises UserNotFound if a user is not in the db
 
         A game is ready if all users have the provided game_id in their active_games
         """
@@ -136,7 +136,7 @@ class UserStatus:
                 if game_id not in user_status.active_games:
                     return False
             else:
-                raise PlayerNotFound(user_id)
+                raise UserNotFound(user_id)
         return True
 
     @staticmethod
@@ -168,7 +168,7 @@ class UserStatus:
 
             except GameNotFound:
                 print(f"User {user} was not in game {game_id}")
-            except PlayerNotFound:
+            except UserNotFound:
                 print(f"User {user} was not found")
 
         return (moved_up_games, notifications_removed_from)
@@ -277,7 +277,7 @@ class UserStatus:
         return moved_games
 
     @staticmethod
-    @pipeline_watch(__pool, "user_id", PlayerNotFound)
+    @pipeline_watch(__pool, "user_id", UserNotFound)
     async def add_notifiction(
         pipe: redis_async_client.Pipeline, game_id: GameId, user_id: UserId
     ):
@@ -312,7 +312,7 @@ class UserStatus:
                 )
                 await pipe.execute()
         else:
-            raise PlayerNotFound(user_id)
+            raise UserNotFound(user_id)
 
     @staticmethod
     async def set_notification_id(user_id: UserId, message_id: MessageId) -> None:

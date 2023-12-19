@@ -11,34 +11,34 @@ from .game_module_loading import GameModuleLoading
 
 class GameAdmin:
     @staticmethod
-    async def players_selected(game_status: GameStatus.Game, players: dict[str, str]):
-        # Add 1 to the player count to include the player who started the game
+    async def users_selected(game_status: GameStatus.Game, users: dict[str, str]):
+        # Add 1 to the user count to include the user who started the game
         if GameModuleLoading.check_game_module_details(
-            game_status.game_module_name, len(players) + 1
+            game_status.game_module_name, len(users) + 1
         ):
-            for player_id, player_name in players.items():
-                game_status.player_names[player_id] = player_name
-                game_status.all_players.append(int(player_id))
-                game_status.unconfirmed_players.append(int(player_id))
+            for user_id, user_name in users.items():
+                game_status.usernames[user_id] = user_name
+                game_status.all_users.append(int(user_id))
+                game_status.unconfirmed_users.append(int(user_id))
 
             # Adds game to game status store
             game_id = await GameStatus.add(game_status, bot.game_requested_expiry)
 
-            # Sends out confirmations to secondary players
+            # Sends out confirmations to secondary users
             await GameNotifications.game_confirms(
-                game_status.unconfirmed_players,
+                game_status.unconfirmed_users,
                 game_id,
-                # TODO consider adding function to notify players between
+                # TODO consider adding function to notify users between
                 # before calling cancel_game in the reject callback
-                functools.partial(GameAdmin.player_confirmed, game_id),
+                functools.partial(GameAdmin.user_confirmed, game_id),
                 functools.partial(GameAdmin.cancel_game, game_id),
             )
         else:
             raise ValueError("Invalid game details")
 
     @staticmethod
-    async def player_confirmed(game_id: GameId, player_id: int):
-        unconfirmed_list = await GameStatus.confirm_player(game_id, player_id)
+    async def user_confirmed(game_id: GameId, user_id: int):
+        unconfirmed_list = await GameStatus.confirm_user(game_id, user_id)
 
         if len(unconfirmed_list) == 0:
             await GameAdmin.start_game(game_id)
@@ -47,12 +47,12 @@ class GameAdmin:
     async def start_game(game_id: GameId):
         game_status = await GameStatus.get(game_id)
 
-        for player_id in game_status.all_players:
+        for user_id in game_status.all_users:
             # Works when called on a game that was qued
             # cause join game checks if user is already in game
-            await UserStatus.join_game(player_id, game_id)
+            await UserStatus.join_game(user_id, game_id)
 
-        if await UserStatus.check_users_are_ready(game_id, game_status.all_players):
+        if await UserStatus.check_users_are_ready(game_id, game_status.all_users):
             await GameNotifications.game_start(game_id)
 
             game_module = GameModuleLoading.get_game_module(
@@ -82,7 +82,7 @@ class GameAdmin:
     @staticmethod
     async def quit_game(game_id: GameId, quiting_user: UserId) -> DiscordMessage:
         """
-        Used when player quits a game to both cancel the game and inform other players
+        Used when user quits a game to both cancel the game and inform other users
         """
         await GameNotifications.game_quit(game_id, quiting_user)
 
@@ -101,7 +101,7 @@ class GameAdmin:
     async def cancel_game(game_id: GameId):
         """
         Clears a game and all its data no matter what state its in.
-        Any notification to player should be done before or after calling this function
+        Any notification to user should be done before or after calling this function
         """
 
         # Clear all game data from redis
@@ -118,7 +118,7 @@ class GameAdmin:
                 users_with_removed_notification,
             ) = await UserStatus.clear_game(
                 game_id,
-                game_details.all_players,
+                game_details.all_users,
             )
 
             for user in users_with_removed_notification:

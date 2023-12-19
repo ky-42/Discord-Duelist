@@ -13,7 +13,7 @@ from exceptions import GameNotFound
 from games.game_handling.game_admin import GameAdmin
 from games.game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_list_embed
-from user_interfaces.game_views import EmbedCycle, GameSelect, GetPlayers
+from user_interfaces.game_views import EmbedCycle, GameSelect, GetUsers
 
 
 class Game(commands.Cog):
@@ -33,26 +33,26 @@ class Game(commands.Cog):
         game_object = GameStatus.Game(
             status=0,
             game_module_name=game_name,
-            starting_player=interaction.user.id,
-            player_names={str(interaction.user.id): interaction.user.name},
-            all_players=[interaction.user.id],
-            unconfirmed_players=[],
+            starting_user=interaction.user.id,
+            usernames={str(interaction.user.id): interaction.user.name},
+            all_users=[interaction.user.id],
+            unconfirmed_users=[],
         )
 
         game_module_details = GameModuleLoading.get_game_module(game_name).get_details()
 
-        # Sends out UI to select players this is done to avoid the users
+        # Sends out UI to select users this is done to avoid the users
         # having to type out the names in inital interaction
         # instead they can just select the users from a dropdown menu
         return await interaction.response.send_message(
-            content="Please select the players you want to play with",
-            view=GetPlayers(
-                game_module_details.min_players,
-                game_module_details.max_players,
+            content="Please select the users you want to play with",
+            view=GetUsers(
+                game_module_details.min_users,
+                game_module_details.max_users,
                 interaction.user.id,
                 # Partial is used to pass the game object to the callback letting
                 # the ui be decoupled from the game object
-                functools.partial(GameAdmin.players_selected, game_object),
+                functools.partial(GameAdmin.users_selected, game_object),
             ),
             delete_after=timedelta(minutes=5).total_seconds(),
             ephemeral=True,

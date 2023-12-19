@@ -1,15 +1,15 @@
 from data_types import GameId
 
 
-class PlayerNotFound(Exception):
-    """Raised when looking for a player but they are not found"""
+class UserNotFound(Exception):
+    """Raised when looking for a user but they are not found"""
 
-    def __init__(self, player_id: int, *args: object) -> None:
-        self.player_id = player_id
+    def __init__(self, user_id: int, *args: object) -> None:
+        self.user_id = user_id
         super().__init__(*args)
 
     def __str__(self) -> str:
-        return f"Player with id {self.player_id} not found"
+        return f"User with id {self.user_id} not found"
 
 
 class GameNotFound(Exception):

@@ -30,21 +30,20 @@ def game_info_embed(
 
     embed.add_field(
         name="Starting Player",
-        value=f"{game_state.player_names[str(game_state.starting_player)]}",
+        value=f"{game_state.usernames[str(game_state.starting_user)]}",
     )
 
     # Gets list of other request users names
-    other_player_names = [
-        game_state.player_names[other_players_ids]
-        for other_players_ids in game_state.player_names.keys()
-        if other_players_ids != sending_to
-        and other_players_ids != game_state.starting_player
+    other_user_names = [
+        game_state.usernames[other_users_ids]
+        for other_users_ids in game_state.usernames.keys()
+        if other_users_ids != sending_to and other_users_ids != game_state.starting_user
     ]
 
-    # Adds other players names to embed
-    if len(other_player_names):
+    # Adds other users names to embed
+    if len(other_user_names):
         embed.add_field(
-            name="Other Players", value=", ".join(other_player_names), inline=True
+            name="Other Players", value=", ".join(other_user_names), inline=True
         )
 
     # Adds game thumbnail to embed
@@ -59,7 +58,7 @@ def game_info_embed(
 
 def game_summary_embed(
     winners: List[str],
-    other_players: List[str],
+    other_users: List[str],
     game_status: GameStatus.Game,
     ending_reason: Optional[str] = None,
 ) -> discord.Embed:
@@ -71,7 +70,7 @@ def game_summary_embed(
 
     winner_str = f"{', '.join(winners)}" if len(winners) else "None"
     embed.add_field(name="Winners", value=winner_str)
-    embed.add_field(name="Other Players", value=f"{', '.join(other_players)}")
+    embed.add_field(name="Other Players", value=f"{', '.join(other_users)}")
 
     if ending_reason:
         embed.set_footer(text=ending_reason)

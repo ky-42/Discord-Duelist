@@ -5,7 +5,7 @@ def check_win(board: List[List[int]]) -> int:
     """
     Checks board for a winner
 
-    Returns 1 if player 1 won, 2 if player 2 won,
+    Returns 1 if user 1 won, 2 if user 2 won,
     -1 if tie and 0 if no winner
     """
 

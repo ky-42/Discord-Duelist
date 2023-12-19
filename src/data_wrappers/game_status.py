@@ -9,7 +9,7 @@ import redis.asyncio as redis_sync
 import redis.asyncio.client as redis_async_client
 
 from data_types import GameId, UserId
-from exceptions import GameNotFound, PlayerNotFound
+from exceptions import GameNotFound, UserNotFound
 
 from .utils import RedisDb, is_main_instance, pipeline_watch
 
@@ -43,35 +43,35 @@ class GameStatus(RedisDb):
         game_module_name[str]:
             Name of game module
 
-        starting_player[int]:
-            Player id of player who started the game
+        starting_user[int]:
+            User id of user who started the game
 
-        player_names[Mapping[str, str]]:
-            Mapping of player id to player name
+        usernames[Mapping[str, str]]:
+            Mapping of user id to user name
 
-        confirmed_players[List[int]]:
-            List of player ids who have agreed to play the game
+        confirmed_users[List[int]]:
+            List of user ids who have agreed to play the game
 
-        unconfirmed_players[List[int]]:
-            List of player ids who have not yet agreed to play the game
+        unconfirmed_users[List[int]]:
+            List of user ids who have not yet agreed to play the game
         """
 
         status: Literal[0, 1, 2]
         game_module_name: str
-        starting_player: int
-        player_names: Dict[str, str]
-        all_players: List[UserId]
-        unconfirmed_players: List[UserId]
+        starting_user: int
+        usernames: Dict[str, str]
+        all_users: List[UserId]
+        unconfirmed_users: List[UserId]
 
-        def confirmed_players(self) -> List[UserId]:
+        def confirmed_users(self) -> List[UserId]:
             """
-            Returns a list of all confirmed players
+            Returns a list of all confirmed users
             """
 
             return list(
                 filter(
-                    lambda player_id: player_id not in self.unconfirmed_players,
-                    self.all_players,
+                    lambda user_id: user_id not in self.unconfirmed_users,
+                    self.all_users,
                 )
             )
 
@@ -153,40 +153,40 @@ class GameStatus(RedisDb):
 
     @staticmethod
     @pipeline_watch(__pool, "game_id", GameNotFound)
-    async def confirm_player(
+    async def confirm_user(
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
-        player_id: int,
+        user_id: int,
     ) -> List[int]:
         """
-        Adds a player to the confirmed list and removes them from the
+        Adds a user to the confirmed list and removes them from the
         unconfirmed list
 
         Raises ActiveGameNotFound if game is not found
-        Raises PlayerNotFound if player is not in unconfirmed list
+        Raises UserNotFound if user is not in unconfirmed list
 
-        Returns updated unconfirmed_players list
+        Returns updated unconfirmed_users list
         """
 
         game_status = await GameStatus.get(game_id)
 
-        if player_id in game_status.unconfirmed_players:
+        if user_id in game_status.unconfirmed_users:
             # Switch to buffered modweeke to make sure all commands
             # are executed without any external changes to the lists
             pipe.multi()
-            # Moves player from unconfirmed to confirmed list
+            # Moves user from unconfirmed to confirmed list
             pipe.json().arrpop(
                 game_id,
-                ".unconfirmed_players",
-                game_status.unconfirmed_players.index(player_id),
+                ".unconfirmed_users",
+                game_status.unconfirmed_users.index(user_id),
             )
-            pipe.json().get(game_id, ".unconfirmed_players")
+            pipe.json().get(game_id, ".unconfirmed_users")
             results = await pipe.execute()
 
             return results[1]
 
         else:
-            raise PlayerNotFound(player_id)
+            raise UserNotFound(user_id)
 
     @staticmethod
     async def delete(game_id: GameId):

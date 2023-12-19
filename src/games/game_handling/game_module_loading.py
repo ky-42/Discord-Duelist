@@ -34,7 +34,7 @@ class GameModuleLoading:
     }
 
     @staticmethod
-    def check_game_module_details(game_name: str, player_count: int) -> bool:
+    def check_game_module_details(game_name: str, user_count: int) -> bool:
         """
         Checks if the passed details are valid for the game module
 
@@ -43,9 +43,9 @@ class GameModuleLoading:
 
         details = GameModuleLoading.get_game_module(game_name).get_details()
 
-        player_count_result = details.check_player_count(player_count)
+        user_count_result = details.check_user_count(user_count)
 
-        return player_count_result
+        return user_count_result
 
     @staticmethod
     def list_all_game_modules() -> list[str]:

@@ -4,7 +4,7 @@ from datetime import timedelta
 import discord
 from discord.ext import commands
 
-from exceptions import PlayerNotFound
+from exceptions import UserNotFound
 
 """
 This file functions as a place to store the global bot var
@@ -43,7 +43,7 @@ class Bot(commands.Bot):
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
-    # Custom get_user that raises PlayerNotFound and trys to fetch user as well
+    # Custom get_user that raises UserNotFound and trys to fetch user as well
     async def get_user(self, user_id: int) -> discord.User:
         # Trys the local cache
         if user_object := super().get_user(user_id):
@@ -53,7 +53,7 @@ class Bot(commands.Bot):
             if fetched_user := await super().fetch_user(user_id):
                 return fetched_user
             else:
-                raise PlayerNotFound(user_id)
+                raise UserNotFound(user_id)
 
     # Custom get_dm_channel to create a dm if it does not exists
     async def get_dm_channel(self, user_id: int) -> discord.DMChannel:

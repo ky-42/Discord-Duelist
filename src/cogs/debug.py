@@ -31,7 +31,7 @@ class TestingStateGeneration:
 
     @staticmethod
     def create_game_state(
-        player_one=randint(1, 10000), state: Literal[0, 1, 2] = 0, game="Tic Tac Toe"
+        user_one=randint(1, 10000), state: Literal[0, 1, 2] = 0, game="Tic Tac Toe"
     ) -> GameStatus.Game:
         """Creates fake game status"""
 
@@ -39,18 +39,18 @@ class TestingStateGeneration:
 
         fake_users = {
             str(randint(1, 10000)): f"user{x}"
-            for x in range(game_details.max_players - 2)
+            for x in range(game_details.max_users - 2)
         }
 
         user_id_list: List[UserId] = [int(x) for x in list(fake_users.keys())]
 
-        confirmed_players = user_id_list if state != 0 else []
+        confirmed_users = user_id_list if state != 0 else []
 
-        user_id_list.append(player_one)
-        fake_users[str(player_one)] = "user1"
+        user_id_list.append(user_one)
+        fake_users[str(user_one)] = "user1"
 
         return GameStatus.Game(
-            state, game, player_one, fake_users, user_id_list, confirmed_players
+            state, game, user_one, fake_users, user_id_list, confirmed_users
         )
 
 
@@ -154,19 +154,19 @@ class Debug(commands.GroupCog, name="debug"):
                 state = 2
 
             game_state = TestingStateGeneration.create_game_state(
-                player_one=interaction.user.id, state=state
+                user_one=interaction.user.id, state=state
             )
 
             game_id = await GameStatus.add(game_state, timedelta(minutes=50))
 
-            for user_id in game_state.all_players:
+            for user_id in game_state.all_users:
                 await UserStatus.join_game(user_id, game_id)
 
         await interaction.response.send_message(content="Done")
 
     @app_commands.command(
         name="clear-fake-games",
-        description="Removes all games from a user but not other players",
+        description="Removes all games from a user but not other the users in the game",
     )
     async def clear_games(self, interaction: discord.Interaction):
         user_sfs = await UserStatus.get(interaction.user.id)
