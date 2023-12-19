@@ -30,7 +30,7 @@ class GameModuleLoading:
     # Stores the loaded game classes and when they were last accessed
     __loaded_game_modules: dict[str, None | Tuple[Type[GameModule], datetime]] = {
         game_module_name: None
-        for game_module_name in os.listdir(os.getenv("GAMES_DIR"))
+        for game_module_name in os.listdir(os.getenv("GAME_MODULES_DIR"))
     }
 
     @staticmethod

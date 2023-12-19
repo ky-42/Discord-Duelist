@@ -7,15 +7,15 @@ import pytest
 import redis
 
 from data_wrappers import GameStatus
-from exceptions import GameNotFound, PlayerNotFound
+from exceptions import GameNotFound, UserNotFound
 
 test_state = GameStatus.Game(
     status=0,
     game_module_name="tic-tac-toe",
-    starting_player=1,
-    player_names={"1": "player_one", "2": "player_two"},
-    all_players=[1, 2],
-    unconfirmed_players=[2],
+    starting_user=1,
+    usernames={"1": "user_one", "2": "user_two"},
+    all_users=[1, 2],
+    unconfirmed_users=[2],
 )
 
 
@@ -81,42 +81,42 @@ class TestGameStatus:
 
         assert self.conn.json().get(test_game_id) == None
 
-    async def test_player_confirm(self):
+    async def test_user_confirm(self):
         sample = test_state
 
         test_game_id = GameStatus._GameStatus__create_game_id()
         self.conn.json().set(test_game_id, ".", asdict(sample))
 
-        random_player = random.choice(sample.unconfirmed_players)
+        random_user = random.choice(sample.unconfirmed_users)
 
-        remaining = await GameStatus.confirm_player(
-            game_id=test_game_id, player_id=random_player
+        remaining = await GameStatus.confirm_user(
+            game_id=test_game_id, user_id=random_user
         )
 
         new_state = GameStatus.Game(**self.conn.json().get(test_game_id))
 
         assert (
-            new_state.all_players == sample.all_players
-            and new_state.unconfirmed_players != test_state.unconfirmed_players
+            new_state.all_users == sample.all_users
+            and new_state.unconfirmed_users != test_state.unconfirmed_users
         )
 
-        sample.unconfirmed_players.remove(random_player)
+        sample.unconfirmed_users.remove(random_user)
 
         assert (
-            remaining == sample.unconfirmed_players
-            and new_state.unconfirmed_players == sample.unconfirmed_players
+            remaining == sample.unconfirmed_users
+            and new_state.unconfirmed_users == sample.unconfirmed_users
         )
 
-    async def test_player_confirm_player_not_found(self):
+    async def test_user_confirm_user_not_found(self):
         test_game_id = GameStatus._GameStatus__create_game_id()
         self.conn.json().set(test_game_id, ".", asdict(test_state))
 
-        with pytest.raises(PlayerNotFound):
-            await GameStatus.confirm_player(game_id=test_game_id, player_id=4)
+        with pytest.raises(UserNotFound):
+            await GameStatus.confirm_user(game_id=test_game_id, user_id=4)
 
-    async def test_player_game_not_found(self):
+    async def test_user_game_not_found(self):
         with pytest.raises(GameNotFound):
-            await GameStatus.confirm_player(game_id="test", player_id=2)
+            await GameStatus.confirm_user(game_id="test", user_id=2)
 
     async def test_shadowkey_timeout(self):
         callback_ran = False
