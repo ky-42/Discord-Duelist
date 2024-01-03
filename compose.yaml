@@ -1,14 +1,14 @@
 services:
-    game-data:
+    game_data:
         image: redis/redis-stack:latest
         restart: always
         ports:
             - '6379:6379'
             - '8001:8001'
         volumes:
-            - game-data:/data
+            - game_data:/data
 
-    user-data:
+    user_data:
         image: postgres:14-alpine
         ports:
             - "5432:5432"
@@ -19,10 +19,10 @@ services:
             - POSTGRES_DB=${POSTGRES_DB}
             - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
         volumes:
-            - user-data:/var/lib/postgresql/data/
+            - user_data:/var/lib/postgresql/data/
 
 volumes:
-    game-data:
+    game_data:
         driver: local
-    user-data:
+    user_data:
         driver: local
