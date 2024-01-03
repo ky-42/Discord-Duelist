@@ -33,6 +33,10 @@ class GameAdmin:
                 functools.partial(GameAdmin.user_confirmed, game_id),
                 functools.partial(GameAdmin.cancel_game, game_id),
             )
+
+            return DiscordMessage(
+                "Game created! Please wait for other players to accept game"
+            )
         else:
             raise ValueError("Invalid game details")
 

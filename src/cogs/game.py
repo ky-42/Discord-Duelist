@@ -47,9 +47,9 @@ class Game(commands.Cog):
         return await interaction.response.send_message(
             content="Please select the users you want to play with",
             view=GetUsers(
+                interaction.user.id,
                 game_module_details.min_users,
                 game_module_details.max_users,
-                interaction.user.id,
                 # Partial is used to pass the game object to the callback letting
                 # the ui be decoupled from the game object
                 functools.partial(GameAdmin.users_selected, game_object),
@@ -160,7 +160,6 @@ class Game(commands.Cog):
                     active_embed := game_list_embed(user_id, True, active_game_details)
                 ),
                 view=EmbedCycle(
-                    user_id,
                     [
                         (
                             active_embed,

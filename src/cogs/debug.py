@@ -85,7 +85,7 @@ class Debug(commands.GroupCog, name="debug"):
                 GameModuleLoading.get_game_module(
                     fake_game.game_module_name
                 ).get_details(),
-                expire_message="Test",
+                footer_message="Test",
             ),
             view=GameConfirm(test_accept, test_reject),
         )
@@ -128,7 +128,7 @@ class Debug(commands.GroupCog, name="debug"):
             test_data.append([new_embed, embed_number])
 
         await interaction.response.send_message(
-            view=EmbedCycle(interaction.user.id, test_data), embed=test_data[0][0]
+            view=EmbedCycle(test_data), embed=test_data[0][0]
         )
 
     @app_commands.command(
