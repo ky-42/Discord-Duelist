@@ -1,30 +1,17 @@
+"""Stores global custom bot instance"""
+
 import os
 from datetime import timedelta
 
 import discord
 from discord.ext import commands
 
+from data_types import UserId
 from exceptions import UserNotFound
-
-"""
-This file functions as a place to store the global bot var
-this is so that not everyclass needs and instance of it to access
-it as it needs to be used all over
-"""
-
-
-def create_intents() -> discord.Intents:
-    intents = discord.Intents()
-    intents.dm_messages = True
-    intents.dm_reactions = True
-    intents.members = True
-    return intents
 
 
 class Bot(commands.Bot):
-    """
-    Custom Bot class is needed to add cogs and overide methods
-    """
+    """Custom Bot class is used to add cogs and overide methods"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -43,29 +30,41 @@ class Bot(commands.Bot):
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
-    # Custom get_user that raises UserNotFound and trys to fetch user as well
-    async def get_user(self, user_id: int) -> discord.User:
+    async def get_user(self, user_id: UserId) -> discord.User:
+        """Fetches a discord user object given their user id
+
+        Raises:
+            UserNotFound: If given user does not exists
+        """
+
         # Trys the local cache
         if user_object := super().get_user(user_id):
             return user_object
         else:
-            # Trys requesting for user
-            if fetched_user := await super().fetch_user(user_id):
-                return fetched_user
-            else:
+            try:
+                return await super().fetch_user(user_id)
+            except:
                 raise UserNotFound(user_id)
 
-    # Custom get_dm_channel to create a dm if it does not exists
     async def get_dm_channel(self, user_id: int) -> discord.DMChannel:
+        """Creates or fetchs a discord dm object for a given user id
+
+        Raises:
+            UserNotFound: If given user does not exists
+        """
         userToDm = await self.get_user(user_id)
 
+        # Checks for existing dm
         if not userToDm.dm_channel:
             return await userToDm.create_dm()
         else:
             return userToDm.dm_channel
 
 
-intents = create_intents()
+intents = discord.Intents()
+intents.dm_messages = True
+intents.dm_reactions = True
+intents.members = True
 bot = Bot(
     command_prefix="/",
     intents=intents,
