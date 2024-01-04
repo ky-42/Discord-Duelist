@@ -4,7 +4,8 @@ from typing import Type
 import discord
 
 from data_types import DiscordMessage, GameId, UserId
-from games.utils import GameInfo, GameModule, GameModuleDetails, get_game_info
+from game_modules.game_classes import GameModule, GameModuleDetails
+from game_modules.utils import GameInfo, get_game_info
 
 from .data import TicTacToeData
 from .helpers import check_win
@@ -27,10 +28,10 @@ class TicTacToe(GameModule):
     @staticmethod
     @get_game_info
     async def start_game(
-        game_info: GameInfo[GameModule.GameState, None],
+        game_info: GameInfo[GameModule.GameStatus, None],
         game_id: GameId,
     ):
-        game_state = game_info.GameState
+        game_state = game_info.GameStatus
 
         game_data = TicTacToeData(
             active_user=game_state.all_users[0],
@@ -42,7 +43,7 @@ class TicTacToe(GameModule):
             active_board=[[0, 0, 0], [0, 0, 0], [0, 0, 0]],
         )
 
-        await GameModule.store_data(game_id, game_data)
+        await GameModule.store_game_data(game_id, game_data)
 
         # Send notification to first user
         await GameModule.send_notification(game_id, game_data.active_user)
@@ -50,7 +51,7 @@ class TicTacToe(GameModule):
     @staticmethod
     @get_game_info
     async def reply(
-        game_info: GameInfo[GameModule.GameState, TicTacToeData],
+        game_info: GameInfo[GameModule.GameStatus, TicTacToeData],
         game_id: GameId,
         user_id: UserId,
     ):
@@ -67,7 +68,7 @@ class TicTacToe(GameModule):
     @staticmethod
     @get_game_info
     async def play_move(
-        game_info: GameInfo[GameModule.GameState, TicTacToeData],
+        game_info: GameInfo[GameModule.GameStatus, TicTacToeData],
         game_id: GameId,
         row: int,
         column: int,
@@ -96,7 +97,7 @@ class TicTacToe(GameModule):
                 else game_data.user_order[1]
             )
 
-            await GameModule.store_data(game_id, game_data)
+            await GameModule.store_game_data(game_id, game_data)
             await GameModule.send_notification(game_id, game_data.active_user)
 
 

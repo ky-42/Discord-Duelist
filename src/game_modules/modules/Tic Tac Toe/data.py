@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from typing import List, Mapping
 
-from games.utils import GameModule
-
 
 @dataclass
-class TicTacToeData(GameModule.GameDataClass):
+class TicTacToeData:
     """
     Data that needs to be stored for a game of Tic Tac Toe
     """

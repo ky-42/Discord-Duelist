@@ -6,8 +6,8 @@ from datetime import timedelta
 import pytest
 from dotenv import load_dotenv
 
-from games.game_handling.game_module_loading import GameModuleLoading
-from games.utils import GameModule
+from game_modules.game_handling.game_module_loading import GameModuleLoading
+from game_modules.utils import GameModule
 
 load_dotenv()
 game_modules_dir = os.getenv("GAME_MODULES_DIR")

@@ -11,7 +11,7 @@ import exceptions
 
 # Stops circular import
 if TYPE_CHECKING:
-    from games.utils import GameModule
+    from game_modules.game_classes import GameModule
 
 load_dotenv()
 
@@ -43,7 +43,7 @@ class GameModuleLoading:
 
         details = GameModuleLoading.get_game_module(game_name).get_details()
 
-        user_count_result = details.check_user_count(user_count)
+        user_count_result = details.check_valid_user_count(user_count)
 
         return user_count_result
 
@@ -92,7 +92,9 @@ class GameModuleLoading:
 
         # Watch out any errors initalizing this are caught by the caller
         # so you won't see module errors
-        game_module = importlib.import_module(f"games.game_modules.{game_name}")
+        game_module = importlib.import_module(
+            f"{os.getenv('GAME_MODULES_IMPORT_PATH')}.{game_name}"
+        )
 
         # Check if the module has a load function
         try:

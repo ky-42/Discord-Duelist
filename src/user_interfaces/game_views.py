@@ -91,11 +91,7 @@ class GetUsers(ui.View):
             await interaction.response.send_message(content=str(e), ephemeral=True)
 
         else:
-            await interaction.response.send_message(
-                content=callback_message.for_send(),
-                ephemeral=True,
-                delete_after=10,
-            )
+            await interaction.response.send_message(**callback_message.for_send())
 
         finally:
             # Deletes the message after 10 seconds

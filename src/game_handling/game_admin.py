@@ -3,8 +3,7 @@ import functools
 from bot import bot
 from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus, UserStatus
-from games.game_handling.game_notifications import GameNotifications
-from user_interfaces.game_embeds import game_info_embed, game_summary_embed
+from game_handling.game_notifications import GameNotifications
 
 from .game_module_loading import GameModuleLoading
 

@@ -4,11 +4,10 @@ from typing import Awaitable, Callable, List
 
 from bot import bot
 from data_types import GameId, MessageId, UserId
-from data_wrappers import game_status
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from exceptions import UserNotFound
-from games.game_handling.game_module_loading import GameModuleLoading
+from game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed, game_summary_embed
 from user_interfaces.game_views import GameConfirm
 

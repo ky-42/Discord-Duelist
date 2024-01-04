@@ -29,7 +29,7 @@ from user_interfaces.utils import game_description_string
 # Stops circular import
 if TYPE_CHECKING:
     from data_wrappers.game_status import GameStatus
-    from games.utils import GameModuleDetails
+    from game_modules.game_classes import GameModuleDetails
 
 
 """

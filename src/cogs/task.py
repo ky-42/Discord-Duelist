@@ -1,7 +1,7 @@
 from discord.ext import commands, tasks
 
 from bot import Bot
-from games.game_handling.game_module_loading import GameModuleLoading
+from game_handling.game_module_loading import GameModuleLoading
 
 
 class Task(commands.Cog):
