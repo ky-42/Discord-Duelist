@@ -36,7 +36,7 @@ class Game(commands.Cog):
             starting_user=interaction.user.id,
             usernames={str(interaction.user.id): interaction.user.name},
             all_users=[interaction.user.id],
-            unconfirmed_users=[],
+            pending_users=[],
         )
 
         game_module_details = GameModuleLoading.get_game_module(game_name).get_details()

@@ -17,7 +17,6 @@ Typical usage example:
     )
 """
 
-
 import asyncio
 from typing import Awaitable, Callable, Dict
 
@@ -57,6 +56,7 @@ class GetUsers(ui.View):
                 also return a DiscordMessage object that will be sent to user after callback
                 runs successfully.
         """
+
         super().__init__()
 
         self.__starting_user = user_id
@@ -75,7 +75,9 @@ class GetUsers(ui.View):
         self.__user_select.callback = defer
 
     @ui.button(label="Confirm", style=discord.ButtonStyle.green, row=1)
-    async def __users_selected(self, interaction: discord.Interaction, _: ui.Button):
+    async def __users_selected(
+        self, interaction: discord.Interaction, _: ui.Button
+    ) -> None:
         selected_users = {str(user.id): user.name for user in self.__user_select.values}
 
         # Checks if user selected themself
@@ -100,13 +102,13 @@ class GetUsers(ui.View):
                 await interaction.followup.delete_message(interaction.message.id)
 
     @ui.button(label="Cancel", style=discord.ButtonStyle.red, row=1)
-    async def __cancel(self, interaction: discord.Interaction, _: ui.Button):
+    async def __cancel(self, interaction: discord.Interaction, _: ui.Button) -> None:
         await interaction.response.defer()
         await interaction.delete_original_response()
         self.stop()
 
 
-class GameConfirm(discord.ui.View):
+class InviteOptions(discord.ui.View):
     """Buttons for accepting or rejecting.
 
     Renders a greeen buttton that says "Accept" and a red button
@@ -128,13 +130,16 @@ class GameConfirm(discord.ui.View):
             reject_callback (Callable[[], Awaitable[None]]):
                 Function called when "Reject" button is pressed.
         """
+
         super().__init__()
 
         self.__accept_callback = accept_callback
         self.__reject_callback = reject_callback
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
-    async def __accept(self, interaction: discord.Interaction, _: discord.ui.Button):
+    async def __accept(
+        self, interaction: discord.Interaction, _: discord.ui.Button
+    ) -> None:
         try:
             await self.__accept_callback()
 
@@ -145,7 +150,9 @@ class GameConfirm(discord.ui.View):
             await interaction.response.edit_message(view=None)
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
-    async def __reject(self, interaction: discord.Interaction, _: discord.ui.Button):
+    async def __reject(
+        self, interaction: discord.Interaction, _: discord.ui.Button
+    ) -> None:
         try:
             await self.__reject_callback()
 
@@ -185,6 +192,7 @@ class GameSelect(ui.View):
                 user.
             button_label (str): Label for the select button
         """
+
         super().__init__()
 
         self.__user_id = user_id
@@ -195,7 +203,7 @@ class GameSelect(ui.View):
         self.__add_select_button(button_label)
         self.__add_cancel_button()
 
-    def __add_dropdown(self, game_list: Dict[GameId, GameStatus.Game]):
+    def __add_dropdown(self, game_list: Dict[GameId, GameStatus.Game]) -> None:
         self.game_dropdown = ui.Select(
             max_values=1, placeholder="Select a game to reply to"
         )
@@ -210,7 +218,7 @@ class GameSelect(ui.View):
 
         self.add_item(self.game_dropdown)
 
-    def __add_select_button(self, button_label: str):
+    def __add_select_button(self, button_label: str) -> None:
         self.selected_button = ui.Button(
             label=button_label, style=discord.ButtonStyle.green, row=1
         )
@@ -219,7 +227,7 @@ class GameSelect(ui.View):
 
         self.add_item(self.selected_button)
 
-    async def __select(self, interaction: discord.Interaction):
+    async def __select(self, interaction: discord.Interaction) -> None:
         if len(self.game_dropdown.values) > 0:
             game_reply = await self.__reply_callback(
                 self.game_dropdown.values[0], interaction.user.id
@@ -228,7 +236,7 @@ class GameSelect(ui.View):
         else:
             await interaction.response.defer()
 
-    def __add_cancel_button(self):
+    def __add_cancel_button(self) -> None:
         self.cancel_button = ui.Button(
             label="Cancel", style=discord.ButtonStyle.red, row=1
         )
@@ -237,7 +245,7 @@ class GameSelect(ui.View):
 
         self.add_item(self.cancel_button)
 
-    async def __cancel(self, interaction: discord.Interaction):
+    async def __cancel(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         await interaction.delete_original_response()
         self.stop()
@@ -259,6 +267,7 @@ class EmbedCycle(ui.View):
                 List of embeds and the text that should be on
                 the button when it is next to be shown.
         """
+
         super().__init__()
 
         self.states = states
@@ -275,7 +284,7 @@ class EmbedCycle(ui.View):
 
         self.add_item(self.switch_button)
 
-    async def __switch_callback(self, interaction: discord.Interaction):
+    async def __switch_callback(self, interaction: discord.Interaction) -> None:
         if interaction.message:
             self.state += 1
 

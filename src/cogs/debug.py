@@ -15,7 +15,7 @@ from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
 from game_handling.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed
-from user_interfaces.game_views import EmbedCycle, GameConfirm, GameSelect
+from user_interfaces.game_views import EmbedCycle, GameSelect, InviteOptions
 
 
 class TestingStateGeneration:
@@ -87,7 +87,7 @@ class Debug(commands.GroupCog, name="debug"):
                 ).get_details(),
                 footer_message="Test",
             ),
-            view=GameConfirm(test_accept, test_reject),
+            view=InviteOptions(test_accept, test_reject),
         )
 
         await interaction.response.send_message(content="Done")

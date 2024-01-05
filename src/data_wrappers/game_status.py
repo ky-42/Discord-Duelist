@@ -1,4 +1,6 @@
-import asyncio
+"""TODO Change confirm wording to accept"""
+
+
 import random
 import string
 from dataclasses import asdict, dataclass
@@ -38,7 +40,7 @@ class GameStatus(RedisDb):
         Used to store data on all games no matter the game type
 
         status[int]:
-            0 = unconfirmed | 1 = confirmed but queued | 2 = in progress
+            0 = unaccepted | 1 = accepted but queued | 2 = in progress
 
         game_module_name[str]:
             Name of game module
@@ -49,11 +51,9 @@ class GameStatus(RedisDb):
         usernames[Mapping[str, str]]:
             Mapping of user id to user name
 
-        confirmed_users[List[int]]:
-            List of user ids who have agreed to play the game
+        #TODO UPDATE THIS
 
-        unconfirmed_users[List[int]]:
-            List of user ids who have not yet agreed to play the game
+
         """
 
         status: Literal[0, 1, 2]
@@ -61,7 +61,7 @@ class GameStatus(RedisDb):
         starting_user: int
         usernames: Dict[str, str]
         all_users: List[UserId]
-        unconfirmed_users: List[UserId]
+        pending_users: List[UserId]
 
         def confirmed_users(self) -> List[UserId]:
             """
@@ -70,7 +70,7 @@ class GameStatus(RedisDb):
 
             return list(
                 filter(
-                    lambda user_id: user_id not in self.unconfirmed_users,
+                    lambda user_id: user_id not in self.pending_users,
                     self.all_users,
                 )
             )
@@ -153,7 +153,7 @@ class GameStatus(RedisDb):
 
     @staticmethod
     @pipeline_watch(__pool, "game_id", GameNotFound)
-    async def confirm_user(
+    async def user_accepted(
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
         user_id: int,
@@ -170,17 +170,17 @@ class GameStatus(RedisDb):
 
         game_status = await GameStatus.get(game_id)
 
-        if user_id in game_status.unconfirmed_users:
+        if user_id in game_status.pending_users:
             # Switch to buffered modweeke to make sure all commands
             # are executed without any external changes to the lists
             pipe.multi()
             # Moves user from unconfirmed to confirmed list
             pipe.json().arrpop(
                 game_id,
-                ".unconfirmed_users",
-                game_status.unconfirmed_users.index(user_id),
+                ".pending_users",
+                game_status.pending_users.index(user_id),
             )
-            pipe.json().get(game_id, ".unconfirmed_users")
+            pipe.json().get(game_id, ".pending_users")
             results = await pipe.execute()
 
             return results[1]

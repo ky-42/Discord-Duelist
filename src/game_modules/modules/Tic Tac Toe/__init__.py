@@ -85,9 +85,9 @@ class TicTacToe(GameModule):
 
         if (winner := check_win(game_data.active_board)) != 0:
             if winner != -1:
-                await TicTacToe.end_game(game_id, [game_data.active_user])
+                await TicTacToe.game_over(game_id, [game_data.active_user])
             else:
-                await TicTacToe.end_game(game_id, [])
+                await TicTacToe.game_over(game_id, [])
 
         else:
             # Switches the active user

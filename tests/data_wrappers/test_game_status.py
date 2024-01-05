@@ -15,7 +15,7 @@ test_state = GameStatus.Game(
     starting_user=1,
     usernames={"1": "user_one", "2": "user_two"},
     all_users=[1, 2],
-    unconfirmed_users=[2],
+    pending_users=[2],
 )
 
 
@@ -87,9 +87,9 @@ class TestGameStatus:
         test_game_id = GameStatus._GameStatus__create_game_id()
         self.conn.json().set(test_game_id, ".", asdict(sample))
 
-        random_user = random.choice(sample.unconfirmed_users)
+        random_user = random.choice(sample.pending_users)
 
-        remaining = await GameStatus.confirm_user(
+        remaining = await GameStatus.user_accepted(
             game_id=test_game_id, user_id=random_user
         )
 
@@ -97,14 +97,14 @@ class TestGameStatus:
 
         assert (
             new_state.all_users == sample.all_users
-            and new_state.unconfirmed_users != test_state.unconfirmed_users
+            and new_state.pending_users != test_state.pending_users
         )
 
-        sample.unconfirmed_users.remove(random_user)
+        sample.pending_users.remove(random_user)
 
         assert (
-            remaining == sample.unconfirmed_users
-            and new_state.unconfirmed_users == sample.unconfirmed_users
+            remaining == sample.pending_users
+            and new_state.pending_users == sample.pending_users
         )
 
     async def test_user_confirm_user_not_found(self):
@@ -112,11 +112,11 @@ class TestGameStatus:
         self.conn.json().set(test_game_id, ".", asdict(test_state))
 
         with pytest.raises(UserNotFound):
-            await GameStatus.confirm_user(game_id=test_game_id, user_id=4)
+            await GameStatus.user_accepted(game_id=test_game_id, user_id=4)
 
     async def test_user_game_not_found(self):
         with pytest.raises(GameNotFound):
-            await GameStatus.confirm_user(game_id="test", user_id=2)
+            await GameStatus.user_accepted(game_id="test", user_id=2)
 
     async def test_shadowkey_timeout(self):
         callback_ran = False

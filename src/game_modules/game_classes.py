@@ -26,7 +26,7 @@ class GameModuleDetails:
     max_users: int
     thumbnail_file_path: str
 
-    def check_valid_user_count(self, user_count):
+    def check_valid_user_count(self, user_count) -> bool:
         return user_count >= self.min_users and user_count <= self.max_users
 
 
@@ -50,7 +50,7 @@ class GameModule(ABC):
         game_info: GameInfo[GameStatus, None],
         game_id: GameId,
     ) -> None:
-        """Called after all users have confirmed and are ready to start the game.
+        """Called after all users have accepted and are ready to start the game.
 
         Should be overridden by all game modules with functionality to start
         the game. This includes sending the first notification to the users and
@@ -59,6 +59,7 @@ class GameModule(ABC):
         Args:
             game_id (GameId): Id of game thats starting.
         """
+
         pass
 
     @staticmethod
@@ -78,13 +79,15 @@ class GameModule(ABC):
         Returns:
             DiscordMessage: Message to be sent to the user.
         """
+
         pass
 
     @staticmethod
     async def send_notification(game_id: GameId, user_id: UserId) -> None:
         """Send a notification to a user that they should reply to a game"""
+
         await UserStatus.add_notifiction(game_id, user_id)
-        new_message_id = await GameNotifications.add_game_notification(user_id)
+        new_message_id = await GameNotifications.added_game_notification(user_id)
         await UserStatus.set_notification_id(user_id, new_message_id)
 
     @staticmethod
@@ -93,8 +96,9 @@ class GameModule(ABC):
 
         Should be called after user replies to a game.
         """
+
         await UserStatus.remove_notification(game_id, user_id)
-        if await GameNotifications.remove_game_notification(user_id):
+        if await GameNotifications.removed_game_notification(user_id):
             await UserStatus.remove_notification_id(user_id)
 
     @staticmethod
@@ -102,7 +106,7 @@ class GameModule(ABC):
         await GameData.store_data(game_id, game_data)
 
     @staticmethod
-    async def end_game(
+    async def game_over(
         game_id: GameId,
         winner_ids: list[int],
     ) -> None:
@@ -112,5 +116,6 @@ class GameModule(ABC):
             game_id (GameId): Id of game to end.
             winner_ids (list[int]): List of ids of users who won the game.
         """
+
         await GameNotifications.game_end(game_id, winner_ids)
-        await GameAdmin.cancel_game(game_id)
+        await GameAdmin.delete_game(game_id)
