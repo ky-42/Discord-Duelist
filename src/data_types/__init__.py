@@ -1,3 +1,5 @@
+"""Contains data types used throughout program"""
+
 from dataclasses import dataclass
 from typing import Optional
 
