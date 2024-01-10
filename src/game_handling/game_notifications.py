@@ -96,6 +96,42 @@ class GameNotifications:
             )
 
     @staticmethod
+    async def max_games(game_id: GameId, maxed_user: UserId) -> None:
+        """Used to inform users that a user has reached their max games.
+
+        Lets players in the game know that a user has reached their max games and
+        that the game will not be started. Also informs the user maxed out user.
+
+        Args:
+            game_id (GameId): Id of game that was not started.
+            maxed_user (UserId): Id of user who has maxed out games.
+        """
+
+        game_status = await GameStatus.get(game_id)
+
+        # Informs non-maxed users in game that the game will not be started
+        for user_id in game_status.all_users:
+            if user_id != maxed_user:
+                await (await bot.get_user(int(user_id))).send(
+                    embed=game_summary_embed(
+                        [],
+                        list(game_status.usernames.values()),
+                        game_status,
+                        f"{game_status.usernames[str(maxed_user)]} has reached their max games and this game will not be started",
+                    )
+                )
+
+        # Informs maxed user that the game will not be started
+        await (await bot.get_user(int(maxed_user))).send(
+            embed=game_summary_embed(
+                [],
+                list(game_status.usernames.values()),
+                game_status,
+                f"You have reached your max games and this game will not be started",
+            )
+        )
+
+    @staticmethod
     def __get_game_notifications_message(notification_amount: int) -> str:
         """Determines the message to send to the user.
 

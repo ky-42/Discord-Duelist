@@ -80,23 +80,27 @@ class GameAdmin:
         for user_id in game_status.all_users:
             # Works when called on a game that was qued
             # cause join game checks if user is already in game
-            await UserStatus.join_game(user_id, game_id)
+            if not await UserStatus.join_game(user_id, game_id):
+                # If user is in too many games game will be deleted
+                # and user will be informed
+                await GameNotifications.max_games(game_id, user_id)
+                await GameAdmin.delete_game(game_id)
 
-        if await UserStatus.check_users_are_ready(game_id, game_status.all_users):
+        if await UserStatus.check_users_are_ready(game_status.all_users, game_id):
             await GameNotifications.game_start(game_id)
 
             game_module = GameModuleLoading.get_game_module(
                 game_status.game_module_name
             )
 
-            await GameStatus.set_game_in_progress(game_id)
+            await GameStatus.set_game_state(game_id, 2)
             await GameStatus.set_expiry(game_id, bot.game_no_move_expiry)
             await game_module.start_game(game_id)
 
         else:
             await GameNotifications.game_queued(game_id)
 
-            await GameStatus.set_game_queued(game_id)
+            await GameStatus.set_game_state(game_id, 1)
             await GameStatus.set_expiry(game_id, None)
 
     @staticmethod
@@ -159,18 +163,15 @@ class GameAdmin:
         game_details = await GameStatus.get(game_id)
 
         # Game started
-        if game_details.status > 1:
-            await GameData.delete_data(game_id)
+        if game_details.state > 1:
+            await GameData.delete(game_id)
 
         # Game qued
-        if game_details.status > 0:
+        if game_details.state > 0:
             (
                 moved_up_games,
                 users_with_removed_notification,
-            ) = await UserStatus.clear_game(
-                game_id,
-                game_details.all_users,
-            )
+            ) = await UserStatus.clear_game(game_details.all_users, game_id)
 
             # Removes any game notifications for users who had one when game was removed
             for user in users_with_removed_notification:
@@ -181,5 +182,5 @@ class GameAdmin:
                 await GameAdmin.__start_game(moved_up_game)
 
         # Game not accepted
-        if game_details.status > -1:
+        if game_details.state > -1:
             await GameStatus.delete(game_id)

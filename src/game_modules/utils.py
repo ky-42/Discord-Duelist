@@ -79,9 +79,6 @@ def get_game_info(
         TypeError: The function does not have a game_id parameter.
         TypeError: The parameter to pass the data to is not the first parameter
             or does not have a type hint of type GameInfo.
-
-    Returns:
-        Callable[P, Awaitable[R]]: The wrapped function.
     """
 
     @functools.wraps(fn)
@@ -117,7 +114,7 @@ def get_game_info(
                 fetched_status = await GameStatus.get(game_id)
 
             if game_data_type != type(None):
-                fetched_game_data = await GameData.retrive_data(game_id, game_data_type)
+                fetched_game_data = await GameData.get(game_id, game_data_type)
 
             fetched_info = GameInfo(fetched_status, fetched_game_data)
 

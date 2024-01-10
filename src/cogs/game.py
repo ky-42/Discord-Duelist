@@ -31,7 +31,7 @@ class Game(commands.Cog):
         """
 
         game_object = GameStatus.Game(
-            status=0,
+            state=0,
             game_module_name=game_name,
             starting_user=interaction.user.id,
             usernames={str(interaction.user.id): interaction.user.name},
@@ -103,9 +103,9 @@ class Game(commands.Cog):
                 try:
                     active_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
-                    await UserStatus.remove_notification(game_id, interaction.user.id)
+                    await UserStatus.remove_notification(interaction.user.id, game_id)
                 else:
-                    if active_game_details.status == 2:
+                    if active_game_details.state == 2:
                         game_details[game_id] = active_game_details
 
             # Send a dropdown to select a game if there are multiple games
@@ -136,9 +136,9 @@ class Game(commands.Cog):
                 try:
                     game_details = await GameStatus.get(game_id)
                 except GameNotFound:
-                    await UserStatus.clear_game(game_id, [user_id])
+                    await UserStatus.clear_game([user_id], game_id)
                 else:
-                    if game_details.status == 1:
+                    if game_details.state == 1:
                         queued_game_details[game_id] = game_details
                     else:
                         print("Game should be queued")
@@ -148,9 +148,9 @@ class Game(commands.Cog):
                 try:
                     game_details = await GameStatus.get(game_id)
                 except GameNotFound:
-                    await UserStatus.clear_game(game_id, [user_id])
+                    await UserStatus.clear_game([user_id], game_id)
                 else:
-                    if game_details.status == 2:
+                    if game_details.state == 2:
                         active_game_details[game_id] = game_details
                     else:
                         print("Game should be active")
@@ -195,9 +195,9 @@ class Game(commands.Cog):
                 try:
                     current_game_details = await GameStatus.get(game_id)
                 except GameNotFound:
-                    await UserStatus.clear_game(game_id, [interaction.user.id])
+                    await UserStatus.clear_game([interaction.user.id], game_id)
                 else:
-                    if current_game_details.status in [1, 2]:
+                    if current_game_details.state in [1, 2]:
                         game_details[game_id] = current_game_details
 
             # Send a dropdown to select a game if there are multiple games

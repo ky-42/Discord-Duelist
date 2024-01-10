@@ -86,7 +86,7 @@ class GameModule(ABC):
     async def send_notification(game_id: GameId, user_id: UserId) -> None:
         """Send a notification to a user that they should reply to a game"""
 
-        await UserStatus.add_notifiction(game_id, user_id)
+        await UserStatus.add_notifiction(user_id, game_id)
         new_message_id = await GameNotifications.added_game_notification(user_id)
         await UserStatus.set_notification_id(user_id, new_message_id)
 
@@ -97,13 +97,13 @@ class GameModule(ABC):
         Should be called after user replies to a game.
         """
 
-        await UserStatus.remove_notification(game_id, user_id)
+        await UserStatus.remove_notification(user_id, game_id)
         if await GameNotifications.removed_game_notification(user_id):
             await UserStatus.remove_notification_id(user_id)
 
     @staticmethod
     async def store_game_data(game_id: GameId, game_data: IsDataclass) -> None:
-        await GameData.store_data(game_id, game_data)
+        await GameData.store(game_id, game_data)
 
     @staticmethod
     async def game_over(

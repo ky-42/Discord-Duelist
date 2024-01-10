@@ -12,7 +12,7 @@ db_number = GameData._GameData__db_number  # type: ignore
 
 
 @dataclass
-class DataClassInherited(GameData.GameDataClass):
+class DataClassInherited:
     test_str: str
     test_number: int
 
@@ -38,7 +38,7 @@ class TestGameData:
     async def test_successful_retrive(self, game_id):
         TestGameData.conn.json().set(game_id, ".", asdict(test_data))
 
-        fetched_data = await GameData.retrive_data(game_id, DataClassInherited)
+        fetched_data = await GameData.get(game_id, DataClassInherited)
 
         assert isinstance(fetched_data, DataClassInherited)
 
@@ -46,10 +46,10 @@ class TestGameData:
 
     async def test_unsuccessful_retrive(self, game_id):
         with pytest.raises(GameNotFound):
-            await GameData.retrive_data(game_id, DataClassInherited)
+            await GameData.get(game_id, DataClassInherited)
 
     async def test_store_data(self, game_id):
-        await GameData.store_data(game_id, test_data)
+        await GameData.store(game_id, test_data)
 
         stored_data = TestGameData.conn.json().get(game_id)
 
@@ -58,4 +58,4 @@ class TestGameData:
     async def test_delete_data(self, game_id):
         TestGameData.conn.json().set(game_id, ".", asdict(test_data))
 
-        await GameData.delete_data(game_id)
+        await GameData.delete(game_id)

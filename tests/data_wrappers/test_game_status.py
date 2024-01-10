@@ -10,7 +10,7 @@ from data_wrappers import GameStatus
 from exceptions import GameNotFound, UserNotFound
 
 test_state = GameStatus.Game(
-    status=0,
+    state=0,
     game_module_name="tic-tac-toe",
     starting_user=1,
     usernames={"1": "user_one", "2": "user_two"},

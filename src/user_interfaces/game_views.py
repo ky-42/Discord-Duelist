@@ -18,6 +18,7 @@ Typical usage example:
 """
 
 import asyncio
+import traceback
 from typing import Awaitable, Callable, Dict
 
 import discord
@@ -89,8 +90,11 @@ class GetUsers(ui.View):
         try:
             callback_message = await self.__users_selected_callback(selected_users)
 
-        except Exception as e:
-            await interaction.response.send_message(content=str(e), ephemeral=True)
+        except:
+            print(traceback.format_exc())
+            await interaction.response.send_message(
+                content="Something went wrong", ephemeral=True
+            )
 
         else:
             await interaction.response.send_message(**callback_message.for_send())
@@ -143,8 +147,11 @@ class InviteOptions(discord.ui.View):
         try:
             await self.__accept_callback()
 
-        except Exception as e:
-            await interaction.response.send_message(content=str(e), ephemeral=True)
+        except:
+            print(traceback.format_exc())
+            await interaction.response.send_message(
+                content="Something went wrong", ephemeral=True
+            )
 
         else:
             await interaction.response.edit_message(view=None)
@@ -156,8 +163,11 @@ class InviteOptions(discord.ui.View):
         try:
             await self.__reject_callback()
 
-        except Exception as e:
-            await interaction.response.send_message(content=str(e), ephemeral=True)
+        except:
+            print(traceback.format_exc())
+            await interaction.response.send_message(
+                content="Something went wrong", ephemeral=True
+            )
 
         else:
             if interaction.message:

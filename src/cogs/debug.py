@@ -174,7 +174,7 @@ class Debug(commands.GroupCog, name="debug"):
         if user_sfs:
             for game_id in user_sfs.active_games + user_sfs.queued_games:
                 await GameStatus.delete(game_id)
-                await UserStatus.clear_game(game_id, [interaction.user.id])
+                await UserStatus.clear_game([interaction.user.id], game_id)
 
     @app_commands.command(name="flush-redis", description="Runs flush db command")
     async def flush(self, interaction: discord.Interaction) -> None:
@@ -188,6 +188,11 @@ class Debug(commands.GroupCog, name="debug"):
         self, interaction: discord.Interaction, game_id: GameId, seconds: int
     ):
         await GameStatus.set_expiry(game_id, timedelta(seconds=seconds))
+        await interaction.response.send_message("Done")
+
+    @app_commands.command(name="test")
+    async def test(self, interaction: discord.Interaction):
+        await GameStatus.delete("2")
         await interaction.response.send_message("Done")
 
 
