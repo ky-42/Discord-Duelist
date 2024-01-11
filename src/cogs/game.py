@@ -1,3 +1,5 @@
+"""Contains game cog, which is used to interact with and play games"""
+
 import functools
 from datetime import timedelta
 from typing import Dict, List
@@ -17,18 +19,14 @@ from user_interfaces.game_views import EmbedCycle, GameSelect, GetUsers
 
 
 class Game(commands.Cog):
-    """
-    Commands used to interact with games
-    """
+    """Commands used to interact with games"""
 
     def __init__(self) -> None:
         super().__init__()
 
     @app_commands.command(name="play", description="Play a game!")
     async def play(self, interaction: discord.Interaction, game_name: str) -> None:
-        """
-        Starts the process of creating a game
-        """
+        """Starts the process of creating a game"""
 
         game_object = GameStatus.Game(
             state=0,
@@ -41,9 +39,7 @@ class Game(commands.Cog):
 
         game_module_details = GameModuleLoading.get_game_module(game_name).get_details()
 
-        # Sends out UI to select users this is done to avoid the users
-        # having to type out the names in inital interaction
-        # instead they can just select the users from a dropdown menu
+        # Sends user UI to select users they would like to play with
         return await interaction.response.send_message(
             content="Please select the users you want to play with",
             view=GetUsers(
@@ -60,16 +56,17 @@ class Game(commands.Cog):
 
     @play.autocomplete("game_name")
     async def play_autocomplete(
-        self, _interaction: discord.Interaction, active: str
+        self, _interaction: discord.Interaction, current_input: str
     ) -> List[app_commands.Choice[str]]:
+        """Autocomplete for game options in the play command.
+
+        Will return the first 25 matches.
         """
-        Autocomplete for game options in the play command
-        """
+
         games_list = GameModuleLoading.list_all_game_modules()
 
-        # Gets list of game names that contain the active string
         partial_matches = list(
-            filter(lambda x: active.lower() in x.lower(), games_list)
+            filter(lambda x: current_input.lower() in x.lower(), games_list)
         )
 
         # Returns the first 25 matches
@@ -79,8 +76,9 @@ class Game(commands.Cog):
         ]
 
     @app_commands.command(name="reply", description="Reply to a game")
-    async def reply(self, interaction: discord.Interaction):
-        """
+    async def reply(self, interaction: discord.Interaction) -> None:
+        """Lets user reply/interact with a game they are in.
+
         When ran this will check if the user is in a game and if they are
         it will either ask them to select the game they want to play and
         just send the interaction to the game class (or skip the select part if they
@@ -97,7 +95,6 @@ class Game(commands.Cog):
                 )
                 return await interaction.response.send_message(**game_reply.for_send())
 
-            # Gets the game details associated with the notifications
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in user_notifications:
                 try:
@@ -122,11 +119,9 @@ class Game(commands.Cog):
             content="You have no games to reply to", ephemeral=True
         )
 
-    @app_commands.command(name="status", description="List your games")
+    @app_commands.command(name="status", description="List the games you are in")
     async def status(self, interaction: discord.Interaction) -> None:
-        """
-        Used to see all the games a user is in
-        """
+        """Used to see all the games a user is in"""
 
         if user_status := await UserStatus.get(interaction.user.id):
             user_id = interaction.user.id
@@ -180,16 +175,11 @@ class Game(commands.Cog):
 
     @app_commands.command(name="quit", description="Leave a game")
     async def quit(self, interaction: discord.Interaction) -> None:
-        """
-        Sends user list of games they can leave with ability to select one
-        """
+        """Sends user list of games they can leave with ability to select one"""
 
-        # Gets all of the users games and creates a dict with
-        # game_id: Description of game
         if user_status := await UserStatus.get(interaction.user.id):
             all_games = user_status.active_games + user_status.queued_games
 
-            # Gets the game details
             game_details: Dict[GameId, GameStatus.Game] = {}
             for game_id in all_games:
                 try:
@@ -200,7 +190,7 @@ class Game(commands.Cog):
                     if current_game_details.state in [1, 2]:
                         game_details[game_id] = current_game_details
 
-            # Send a dropdown to select a game if there are multiple games
+            # Send a dropdown to select a game to quit
             if len(game_details) > 0:
                 return await interaction.response.send_message(
                     content="Please select the game you want to quit",
