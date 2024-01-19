@@ -37,7 +37,7 @@ def game_description_string(
         ]
     )
 
-    main_string = f"{game_status.game_module_name.capitalize()}  with {user_names}"
+    main_string = f"{game_status.game_module_name.capitalize()} with {user_names}"
 
     if game_id:
         main_string += f" ({game_id})"

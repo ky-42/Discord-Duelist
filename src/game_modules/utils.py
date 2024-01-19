@@ -58,7 +58,7 @@ def get_game_info(
     """Decorator for getting the game status and game data for a game.
 
     Used to get the game status and game data for a game and pass it to a function.
-    To use this decorator the function must have a paramter called game_id that
+    To use this decorator the function must have a paramter called "game_id" that
     contains the id of the game to get the status and data for. The parameter to
     pass the data to must always be the first parameter with a type hint of
     type GameInfo with its generic parameters specifiying what data to get.
@@ -73,7 +73,8 @@ def get_game_info(
             Fetches both the game status and game data for the game.
 
     Args:
-        fn (Callable[Concatenate[GameInfo, P], Awaitable[R]]): Function to wrap.
+        fn (Callable[Concatenate[GameInfo, LefoverParams], Awaitable[ReturnType]]):
+            Function to wrap.
 
     Raises:
         TypeError: The function does not have a game_id parameter.

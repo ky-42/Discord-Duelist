@@ -13,45 +13,9 @@ from data_types import DiscordMessage, GameId, UserId
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
-from game_handling.game_module_loading import GameModuleLoading
+from game_modules.game_module_loading import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, InviteOptions
-
-
-class TestingStateGeneration:
-    # TODO move this to area that can be used by all tests
-    """Used to generate fake state for testing purposes"""
-
-    def __init__(self) -> None:
-        pass
-
-    @staticmethod
-    def create_game_id():
-        return "".join(random.choices(string.ascii_letters + string.digits, k=16))
-
-    @staticmethod
-    def create_game_state(
-        user_one=randint(1, 10000), state: Literal[0, 1, 2] = 0, game="Tic Tac Toe"
-    ) -> GameStatus.Game:
-        """Creates fake game status"""
-
-        game_details = GameModuleLoading.get_game_module(game).get_details()
-
-        fake_users = {
-            str(randint(1, 10000)): f"user{x}"
-            for x in range(game_details.max_users - 2)
-        }
-
-        user_id_list: List[UserId] = [int(x) for x in list(fake_users.keys())]
-
-        confirmed_users = user_id_list if state != 0 else []
-
-        user_id_list.append(user_one)
-        fake_users[str(user_one)] = "user1"
-
-        return GameStatus.Game(
-            state, game, user_one, fake_users, user_id_list, confirmed_users
-        )
 
 
 class Debug(commands.GroupCog, name="debug"):

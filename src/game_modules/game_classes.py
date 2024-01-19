@@ -19,12 +19,10 @@ class GameModuleDetails:
     Attributes:
         min_users (int): Minimum number of users needed to play the game.
         max_users (int): Maximum number of users that can play the game.
-        thumbnail_file_path (str): Path to the thumbnail image for the game.
     """
 
     min_users: int
     max_users: int
-    thumbnail_file_path: str
 
     def check_valid_user_count(self, user_count) -> bool:
         return user_count >= self.min_users and user_count <= self.max_users

@@ -53,9 +53,9 @@ class GameStatus:
         state: Literal[0, 1, 2]
         game_module_name: str
         starting_user: UserId
-        usernames: Dict[str, str]
         all_users: List[UserId]
         pending_users: List[UserId]
+        usernames: Dict[str, str]
 
         def get_accepted_users(self) -> List[UserId]:
             """Gets list of users who have accepted invite to play the game.

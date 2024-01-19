@@ -6,8 +6,7 @@ from bot import bot
 from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus, UserStatus
 from game_handling.game_notifications import GameNotifications
-
-from .game_module_loading import GameModuleLoading
+from game_modules.game_module_loading import GameModuleLoading
 
 
 class GameAdmin:

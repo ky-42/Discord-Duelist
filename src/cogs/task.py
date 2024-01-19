@@ -3,7 +3,7 @@
 from discord.ext import commands, tasks
 
 from bot import Bot
-from game_handling.game_module_loading import GameModuleLoading
+from game_modules.game_module_loading import GameModuleLoading
 
 
 class Task(commands.Cog):
@@ -17,6 +17,12 @@ class Task(commands.Cog):
         """Clears old loaded games from memory"""
 
         GameModuleLoading.clear_old_games_modules()
+
+    @tasks.loop(minutes=15)
+    async def refresh_games_list():
+        """Refreshes the list of available games"""
+
+        GameModuleLoading.refresh_games_list()
 
 
 async def setup(bot: Bot) -> None:

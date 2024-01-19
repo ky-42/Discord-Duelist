@@ -22,7 +22,6 @@ class TicTacToe(GameModule):
         return GameModuleDetails(
             min_users=2,
             max_users=2,
-            thumbnail_file_path=f"{os.path.dirname(__file__)}/images/thumb.jpg",
         )
 
     @staticmethod

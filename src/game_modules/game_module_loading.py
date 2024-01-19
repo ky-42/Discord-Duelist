@@ -89,7 +89,7 @@ class GameModuleLoading:
 
         try:
             game_module = importlib.import_module(
-                f"{os.getenv('GAME_MODULES_IMPORT_PATH')}.{game_name}"
+                f"{os.getenv('GAME_MODULES_IMPORT_PATH')}.{game_name}",
             )
 
         except ModuleNotFoundError:
@@ -107,6 +107,18 @@ class GameModuleLoading:
             # Store the module in the loaded games dict and returns game class
             GameModuleLoading.__loaded_game_modules[game_name] = (game, datetime.now())
             return game
+
+    @staticmethod
+    def refresh_games_list() -> None:
+        """Refreshes the list of available games"""
+
+        GameModuleLoading.__loaded_game_modules = {
+            game_module_name: None
+            for game_module_name in os.listdir(os.getenv("GAME_MODULES_DIR"))
+        }
+
+        # Invalidate the cache to ensure the new modules can be loaded later
+        importlib.invalidate_caches()
 
     @staticmethod
     def clear_old_games_modules() -> None:
