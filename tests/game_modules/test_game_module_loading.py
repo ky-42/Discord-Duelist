@@ -6,8 +6,8 @@ from datetime import timedelta
 import pytest
 from dotenv import load_dotenv
 
+from game_modules import GameModuleLoading
 from game_modules.game_classes import GameModule
-from game_modules.game_module_loading import GameModuleLoading
 from tests.testing_data.module_generation import (
     add_fake_game_module,
     add_test_game_module,
@@ -45,7 +45,8 @@ def change_clear_time(time: timedelta):
 def test_details_player_count(add_test_game_module):
     assert not GameModuleLoading.check_game_module_details(add_test_game_module, 1)
     assert GameModuleLoading.check_game_module_details(add_test_game_module, 2)
-    assert not GameModuleLoading.check_game_module_details(add_test_game_module, 3)
+    assert GameModuleLoading.check_game_module_details(add_test_game_module, 4)
+    assert not GameModuleLoading.check_game_module_details(add_test_game_module, 5)
 
 
 def test_list_modules():
@@ -58,7 +59,7 @@ def test_list_modules():
 def test_get_known_module(add_test_game_module):
     loaded_module = GameModuleLoading.get_game_module(add_test_game_module)
 
-    assert type(loaded_module) == type(GameModule)
+    assert type(loaded_module) is type(GameModule)
 
 
 def test_get_unknown_module():
@@ -88,10 +89,10 @@ def test_clear_modules(add_test_game_module):
 
     GameModuleLoading.clear_old_games_modules()
 
-    assert GameModuleLoading._GameModuleLoading__loaded_game_modules[add_test_game_module] != None  # type: ignore
+    assert GameModuleLoading._GameModuleLoading__loaded_game_modules[add_test_game_module] is not None  # type: ignore
 
     time.sleep(0.05)
 
     GameModuleLoading.clear_old_games_modules()
 
-    assert GameModuleLoading._GameModuleLoading__loaded_game_modules[add_test_game_module] == None  # type: ignore
+    assert GameModuleLoading._GameModuleLoading__loaded_game_modules[add_test_game_module] is None  # type: ignore

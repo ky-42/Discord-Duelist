@@ -42,18 +42,27 @@ def add_test_game_module():
 
     testing_game_folder_path = os.path.join(current_dir, "Testing_Game")
 
+    # Move the Testing_Game folder to the game_modules directory
     if game_modules_dir != None:
-        shutil.move(testing_game_folder_path, game_modules_dir)
+        if os.path.exists(testing_game_folder_path):
+            shutil.move(testing_game_folder_path, game_modules_dir)
+        else:
+            raise FileNotFoundError("Testing_Game folder not found")
     else:
-        raise FileNotFoundError("GAME_MODULES_DIR env var not set")
+        raise ValueError("GAME_MODULES_DIR env var not set")
 
+    # Makes sure the module can be imported
     importlib.invalidate_caches()
 
     yield "Testing_Game"
 
+    game_module_path = os.path.join(game_modules_dir, "Testing_Game")
+
+    # Move the Testing_Game folder back to the testing_data directory
     if game_modules_dir != None:
-        shutil.move(
-            os.path.join(game_modules_dir, "Testing Game"), testing_game_folder_path
-        )
+        if os.path.exists(game_module_path):
+            shutil.move(game_module_path, testing_game_folder_path)
+        else:
+            raise FileNotFoundError("Testing_Game folder not found")
     else:
-        raise FileNotFoundError("GAME_MODULES_DIR env var not set")
+        raise ValueError("GAME_MODULES_DIR env var not set")

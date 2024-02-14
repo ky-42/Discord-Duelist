@@ -73,7 +73,7 @@ class GameModuleLoading:
         # Check if the game module is already loaded
         if (
             game_module := GameModuleLoading.__loaded_game_modules.get(game_name)
-        ) != None:
+        ) is not None:
             # Update the last accessed time
             GameModuleLoading.__loaded_game_modules[game_name] = (
                 game_module[0],
@@ -125,6 +125,6 @@ class GameModuleLoading:
         """Clears loaded games that not been accessed recently"""
 
         for game_name, game_values in GameModuleLoading.__loaded_game_modules.items():
-            if game_values != None:
+            if game_values is not None:
                 if game_values[1] + GameModuleLoading.__clear_time < datetime.now():
                     GameModuleLoading.__loaded_game_modules[game_name] = None

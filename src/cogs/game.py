@@ -12,8 +12,8 @@ from bot import Bot
 from data_types import GameId
 from data_wrappers import GameStatus, UserStatus
 from exceptions import GameNotFound
-from game_handling.game_admin import GameAdmin
-from game_modules.game_module_loading import GameModuleLoading
+from game_handling import GameAdmin
+from game_modules import GameModuleLoading
 from user_interfaces.game_embeds import game_list_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, GetUsers
 

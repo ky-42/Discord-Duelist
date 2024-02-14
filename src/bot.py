@@ -30,7 +30,7 @@ class Bot(commands.Bot):
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
 
-    async def get_user(self, user_id: UserId) -> discord.User:
+    async def get_user_obj(self, user_id: UserId) -> discord.User:
         """Fetches a discord user object given their user id
 
         Raises:
@@ -52,7 +52,7 @@ class Bot(commands.Bot):
         Raises:
             UserNotFound: If given user does not exists
         """
-        userToDm = await self.get_user(user_id)
+        userToDm = await self.get_user_obj(user_id)
 
         # Checks for existing dm
         if not userToDm.dm_channel:

@@ -1,5 +1,6 @@
 """Contains the GameStatus class which is used keep track of games"""
 
+import asyncio
 import random
 import string
 from dataclasses import asdict, dataclass
@@ -247,6 +248,9 @@ class GameStatus:
         If the callback of same name is already added then the function will
         not be added.
 
+        Game will not be automatically deleted from db. This should be done
+        manually in a callback function.
+
         Args:
             fn (Callable[[GameId], Awaitable[None]]): Function to be called when
                 game expires. Should accept game id as a parameter.
@@ -272,7 +276,8 @@ class GameStatus:
                 game_id = msg.split(":")[1]
 
                 for callback in GameStatus.__expire_callbacks.values():
-                    await callback(game_id)
+                    # Uses ensure_future instead of await to avoid blocking
+                    asyncio.ensure_future(callback(game_id))
             else:
                 print("Not shadow key")
 

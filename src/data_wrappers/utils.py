@@ -2,6 +2,7 @@ import asyncio
 import functools
 import inspect
 import os
+import sys
 from typing import (
     Any,
     Awaitable,
@@ -143,11 +144,11 @@ class RedisDb:
     # Redis connection pool
     __pool = redis_sync.Redis(db=0)
 
-    # Instance of pubsub task
-    __pubsub_task: Optional[asyncio.Task] = None
-
     # Dict of channel patterns and their callbacks
     __pubsub_callbacks: Dict[str, Callable[[Any], Awaitable[None]]] = {}
+
+    # Instance of pubsub task
+    __pubsub_task: Optional[asyncio.Task] = None
 
     @staticmethod
     async def flush_db():
@@ -155,18 +156,29 @@ class RedisDb:
         await RedisDb.__pool.flushall()
 
     @staticmethod
-    async def __recreate_pubsub_task() -> None:
+    async def __pubsub_reader(pubsub_obj: redis_async_client.PubSub):
+        while True:
+            await pubsub_obj.get_message(ignore_subscribe_messages=True, timeout=0.5)
+
+    @staticmethod
+    async def __create_pubsub_task() -> None:
         """Recreates pubsub task updating any callback changes"""
 
-        if RedisDb.__pubsub_task != None:
-            RedisDb.__pubsub_task.cancel()
-        else:
-            # Sets up expire events if its first time running
-            await RedisDb.__pool.config_set("notify-keyspace-events", "Ex")
+        await RedisDb.__pool.config_set("notify-keyspace-events", "Ex")
 
-        new_pubsub_obj = RedisDb.__pool.pubsub()
-        await new_pubsub_obj.psubscribe(**RedisDb.__pubsub_callbacks)
-        RedisDb.__pubsub_task = asyncio.create_task(new_pubsub_obj.run())
+        if RedisDb.__pubsub_task is not None:
+            try:
+                RedisDb.__pubsub_task.cancel()
+            # Needed because old task might be on different event loop in tests
+            except RuntimeError as e:
+                if "pytest" not in sys.modules:
+                    raise
+
+        pubsub_obj = RedisDb.__pool.pubsub()
+        await pubsub_obj.psubscribe(**RedisDb.__pubsub_callbacks)
+        RedisDb.__pubsub_task = asyncio.get_event_loop().create_task(
+            RedisDb.__pubsub_reader(pubsub_obj)
+        )
 
     @staticmethod
     @is_main_instance
@@ -190,15 +202,16 @@ class RedisDb:
         def wrapper(
             fn: Callable[[Any], Awaitable[None]]
         ) -> Callable[[Any], Awaitable[None]]:
+
             RedisDb.__pubsub_callbacks[channel_pattern] = fn
 
             # Adds pubsub task to event loop creating one if needed
             try:
-                asyncio.get_running_loop().create_task(RedisDb.__recreate_pubsub_task())
-            except:
-                asyncio.new_event_loop().run_until_complete(
-                    RedisDb.__recreate_pubsub_task()
-                )
+                asyncio.get_running_loop().create_task(RedisDb.__create_pubsub_task())
+            # Needed because during pytest collection there is no running loop
+            except RuntimeError:
+                if "pytest" not in sys.modules:
+                    raise
 
             return fn
 
@@ -207,7 +220,7 @@ class RedisDb:
     @staticmethod
     @is_main_instance
     async def add_pubsub_callback(
-        channel_pattern: str, callback_func: Callable[[Dict[str, str]], Awaitable[None]]
+        channel_pattern: str, callback_func: Callable[[Any], Awaitable[None]]
     ):
         """Manually add a pubsub callback.
 
@@ -225,7 +238,7 @@ class RedisDb:
 
         RedisDb.__pubsub_callbacks[channel_pattern] = callback_func
 
-        await RedisDb.__recreate_pubsub_task()
+        await RedisDb.__create_pubsub_task()
 
     @staticmethod
     @is_main_instance
@@ -241,4 +254,10 @@ class RedisDb:
 
         del RedisDb.__pubsub_callbacks[channel_pattern]
 
-        await RedisDb.__recreate_pubsub_task()
+        if len(RedisDb.__pubsub_callbacks) == 0:
+            if RedisDb.__pubsub_task is not None:
+                RedisDb.__pubsub_task.cancel()
+                RedisDb.__pubsub_task = None
+            return
+
+        await RedisDb.__create_pubsub_task()

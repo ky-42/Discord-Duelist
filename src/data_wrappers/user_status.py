@@ -1,7 +1,7 @@
 """Contains the UserStatus class which keeps track of the status of users"""
 
 from dataclasses import asdict, dataclass
-from typing import List, Optional, Set
+from typing import List, Optional, Set, cast
 
 import redis
 import redis.asyncio as redis_sync
@@ -63,7 +63,7 @@ class UserStatus:
             game_id (GameId): Id of game to add to user.
 
         Returns:
-            bool: True if the user can not join game, else False.
+            bool: True if the user can join game, else False.
         """
 
         if await UserStatus.__pool.exists(str(user_id)):
@@ -73,7 +73,7 @@ class UserStatus:
         return True
 
     @staticmethod
-    @pipeline_watch(__pool, "user_id")
+    @pipeline_watch(__pool, "user_id", UserNotFound)
     async def __join_game_existing_user(
         pipe: redis_async_client.Pipeline,
         user_id: UserId,
@@ -84,11 +84,10 @@ class UserStatus:
         Should only be called by join_game when a user already
         existst in the db.
 
-        Will return false if user is maxed out on games.
+        Will return False if user is maxed out on games.
         """
 
-        user_status = await pipe.json().get(user_id)
-        user_status = UserStatus.User(**user_status)
+        user_status = cast(UserStatus.User, await UserStatus.get(user_id))
 
         if (
             game_id not in user_status.active_games
@@ -138,6 +137,7 @@ class UserStatus:
 
         if user_status := await UserStatus.__pool.json().get(user_id):
             return UserStatus.User(**user_status)
+        return None
 
     @staticmethod
     async def check_users_are_ready(user_ids: List[UserId], game_id: GameId) -> bool:
@@ -167,7 +167,7 @@ class UserStatus:
         return True
 
     @staticmethod
-    async def add_notifiction(user_id: UserId, game_id: GameId) -> None:
+    async def add_notification(user_id: UserId, game_id: GameId) -> None:
         """Adds a game to a user's notifications.
 
         Args:
@@ -183,7 +183,9 @@ class UserStatus:
 
         # Makes sure there are no duplicates
         if game_id not in user_status.notifications:
-            UserStatus.__pool.json().arrappend(str(user_id), ".notifications", game_id)
+            await UserStatus.__pool.json().arrappend(
+                str(user_id), ".notifications", game_id
+            )
 
     @staticmethod
     async def remove_notification(user_id: UserId, game_id: GameId) -> bool:
@@ -206,7 +208,7 @@ class UserStatus:
         removed = False
 
         if game_id in user_status.notifications:
-            UserStatus.__pool.json().arrpop(
+            await UserStatus.__pool.json().arrpop(
                 str(user_id),
                 ".notifications",
                 user_status.notifications.index(game_id),
@@ -217,13 +219,17 @@ class UserStatus:
         return removed
 
     @staticmethod
-    async def set_notification_id(user_id: UserId, message_id: MessageId) -> None:
+    async def set_notification_id(
+        user_id: UserId, message_id: MessageId | None
+    ) -> None:
         """Sets the notification id of a user.
+
+        Pass None to remove the notification id.
 
         Args:
             user_id (UserId): Id of user to set notification id for.
-            message_id (MessageId): Id of discord message to set as
-                notification id.
+            message_id (MessageId | None): Id of discord message to set as
+                notification id. If None, removes the notification id.
 
         Raises:
             UserNotFound: Raised if user_id is not found in db.
@@ -231,22 +237,6 @@ class UserStatus:
 
         try:
             await UserStatus.__pool.json().set(user_id, ".notification_id", message_id)
-        except redis.ResponseError:
-            raise UserNotFound(user_id)
-
-    @staticmethod
-    async def remove_notification_id(user_id: UserId) -> None:
-        """Removes the notification id of a user.
-
-        Args:
-            user_id (UserId): User to remove notification id from.
-
-        Raises:
-            UserNotFound: Raised if user_id is not found in db.
-        """
-
-        try:
-            await UserStatus.__pool.json().set(user_id, ".notification_id", None)
         except redis.ResponseError:
             raise UserNotFound(user_id)
 
@@ -282,6 +272,12 @@ class UserStatus:
                     notification_removed,
                 ) = await UserStatus.__remove_game(game_id, user)
 
+            except GameNotFound:
+                print(f"User {user} was not in game {game_id}")
+            except UserNotFound:
+                print(f"User {user} was not found")
+
+            else:
                 if moved_up_ids := user_moved_up_games:
                     for move_up_id in moved_up_ids:
                         moved_up_games.add(move_up_id)
@@ -289,15 +285,10 @@ class UserStatus:
                 if notification_removed:
                     notifications_removed_from.append(user)
 
-            except GameNotFound:
-                print(f"User {user} was not in game {game_id}")
-            except UserNotFound:
-                print(f"User {user} was not found")
-
         return (moved_up_games, notifications_removed_from)
 
     @staticmethod
-    @pipeline_watch(__pool, "user_id")
+    @pipeline_watch(__pool, "user_id", UserNotFound)
     async def __remove_game(
         pipe: redis_async_client.Pipeline,
         game_id: GameId,
@@ -309,8 +300,7 @@ class UserStatus:
         deleted = False
         removed_notification = False
 
-        if not (user_status := await UserStatus.get(user_id)):
-            raise UserNotFound(user_id)
+        user_status = cast(UserStatus.User, await UserStatus.get(user_id))
 
         if (
             game_id not in user_status.active_games
@@ -365,8 +355,7 @@ class UserStatus:
         flag = True
         moved_games = []
 
-        if not (user_status := await UserStatus.get(user_id)):
-            raise UserNotFound(user_id)
+        user_status = cast(UserStatus.User, await UserStatus.get(user_id))
 
         while flag:
             # Checks if there is space in active_games and if there are games in queued_games

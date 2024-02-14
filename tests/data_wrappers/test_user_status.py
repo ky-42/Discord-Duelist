@@ -1,233 +1,173 @@
 from dataclasses import asdict
 from random import randint
+from typing import List, cast
 
 import pytest
 import redis
 
+from data_types import UserId
 from data_wrappers import UserStatus
-from exceptions import GameNotFound, UserNotFound
-
-test_state_active_game = UserStatus.User(
-    active_games=["test_game_id"], queued_games=[], notifications=[]
-)
-
-test_state_queued_games = UserStatus.User(
-    active_games=["test_game_id", "a", "b", "c", "d", "e"],
-    queued_games=["test_game_id_2"],
-    notifications=[],
-)
-
-test_state_queued_game_first_id = UserStatus.User(
-    active_games=["test_game_id_wrong", "a", "b", "c", "d", "e"],
-    queued_games=["test_game_id"],
-    notifications=[],
-)
+from tests.testing_data.data_generation import generate_user_status, user_id
 
 db_number = UserStatus._UserStatus__db_number  # type: ignore
 
 
-class TestUserStatus:
-    conn = redis.Redis(db=db_number)
-    pytestmark = pytest.mark.asyncio
+conn = redis.Redis(db=db_number)
+pytestmark = pytest.mark.asyncio(scope="module")
 
-    @pytest.fixture(scope="class", autouse=True)
-    def setup_delete_db(self):
-        yield
+max_active = UserStatus._UserStatus__max_active_games  # type: ignore
+max_queued = UserStatus._UserStatus__max_queued_games  # type: ignore
 
-        # After tests in this class clears db
-        TestUserStatus.conn.flushdb()
 
-    async def test_get_status_existing_user(self):
-        """
-        Tests if get_status returns the correct UserState for an existing user
-        """
-        user_id = randint(1, 100000)
+@pytest.fixture(scope="module", autouse=True)
+def setup_delete_db():
+    yield
 
-        self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
+    # After tests in this class clears db
+    conn.flushdb()
 
-        result = await UserStatus.get(user_id)
 
-        assert result == test_state_queued_games
+async def test_join_game(user_id):
+    test_user = generate_user_status(max_active - 1, 0)
 
-    async def test_get_status_nonexistent_user(self):
-        """
-        Tests if get_status returns None for a nonexistent user
-        """
-        user_id = randint(1, 100000)
+    conn.json().set(user_id, ".", asdict(test_user))
 
-        result = await UserStatus.get(user_id)
+    add_id = "test"
+    add_id_two = "test2"
 
-        assert result is None
+    assert await UserStatus.join_game(user_id, add_id)
+    assert await UserStatus.join_game(user_id, add_id_two)
 
-    async def test_join_game_full_user(self):
-        """
-        Tests if join_game adds a game to the queued_games list for an existing user
-        """
-        user_id = randint(1, 10000)
+    result = UserStatus.User(**conn.json().get(user_id))
 
-        self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
+    assert result.queued_games == test_user.queued_games + [add_id_two]
+    assert result.active_games == test_user.active_games + [add_id]
 
-        game_id = "test_game_id_3"
 
-        await UserStatus.join_game(user_id, game_id)
+async def test_join_game_nonexistent_user(user_id):
+    game_id = "test"
 
-        result = self.conn.json().get(user_id)
+    assert await UserStatus.join_game(user_id, game_id)
 
-        result = UserStatus.User(**result)
+    expected_user_state = UserStatus.User(
+        active_games=[game_id], queued_games=[], notifications=[]
+    )
 
-        assert result.queued_games == test_state_queued_games.queued_games + [game_id]
-        assert result.active_games == test_state_queued_games.active_games
+    assert conn.json().get(user_id) == asdict(expected_user_state)
 
-    async def test_join_game_nonexistent_user(self):
-        """
-        Tests if join_game creates a new user with the provided game as the active game
-        when the user does not exist
-        """
-        user_id = randint(1, 10000)
-        game_id = "test_game_id_0"
 
-        await UserStatus.join_game(user_id, game_id)
+async def test_join_game_full(user_id):
+    test_user = generate_user_status(max_active, max_queued)
 
-        result = self.conn.json().get(user_id)
+    conn.json().set(user_id, ".", asdict(test_user))
 
-        expected_user_state = UserStatus.User(
-            active_games=["test_game_id_0"], queued_games=[], notifications=[]
-        )
+    assert not await UserStatus.join_game(user_id, "test")
 
-        assert result == asdict(expected_user_state)
 
-    async def test_check_users_are_ready_all_ready(self):
-        """
-        Tests if check_users_are_ready returns True when all users are ready (active_game is None)
-        """
-        user_ids = [randint(1, 10000), randint(1, 10000)]
-        for user_id in user_ids:
-            user_state = UserStatus.User(
-                active_games=["test_game_id_0"], queued_games=[], notifications=[]
-            )
-            self.conn.json().set(user_id, ".", asdict(user_state))
+async def test_get_status_existing_user(user_id):
+    test_user = generate_user_status(1, 0)
 
-        result = await UserStatus.check_users_are_ready("test_game_id_0", user_ids)
+    conn.json().set(user_id, ".", asdict(test_user))
 
-        assert result is True
+    assert await UserStatus.get(user_id) == test_user
 
-    async def test_check_users_are_ready_active_already_set(self):
-        """
-        Tests if check_users_are_ready returns True when at least one user already has
-        active_game set to the provided game_id
-        (active_game is not None)
-        """
-        user_ids = [randint(1, 10000), randint(1, 10000)]
-        self.conn.json().set(user_ids[0], ".", asdict(test_state_active_game))
-        user_state = UserStatus.User(
-            active_games=["test_game_id"], queued_games=[], notifications=[]
-        )
-        self.conn.json().set(user_ids[1], ".", asdict(user_state))
 
-        result = await UserStatus.check_users_are_ready("test_game_id", user_ids)
+async def test_get_status_nonexistent_user(user_id):
+    assert await UserStatus.get(user_id) is None
 
-        assert result is True
 
-    async def test_check_users_are_ready_not_ready(self):
-        """
-        Tests if check_users_are_ready returns False when at least one user is not ready
-        (active_game is not None)
-        """
-        user_ids = [randint(1, 10000), randint(1, 10000)]
-        self.conn.json().set(user_ids[0], ".", asdict(test_state_active_game))
-        user_state = UserStatus.User(active_games=[], queued_games=[], notifications=[])
-        self.conn.json().set(user_ids[1], ".", asdict(user_state))
+async def test_check_users_are_ready_all_ready(user_id):
+    users = {user_id + i: generate_user_status(1, 0) for i in range(3)}
 
-        result = await UserStatus.check_users_are_ready("wrong", user_ids)
+    for current_user_id, user_obj in users.items():
+        conn.json().set(current_user_id, ".", asdict(user_obj))
 
-        assert result is False
+    assert await UserStatus.check_users_are_ready(list(users.keys()), "0")
 
-    async def test_check_users_are_ready_nonexistent_user(self):
-        """
-        Tests if check_users_are_ready returns True when at least one user does not exist
-        """
-        user_ids = [randint(1, 10000), randint(1, 10000), randint(1, 10000)]
-        self.conn.json().set(user_ids[0], ".", asdict(test_state_active_game))
-        user_state = UserStatus.User(active_games=[], queued_games=[], notifications=[])
-        self.conn.json().set(user_ids[2], ".", asdict(test_state_active_game))
 
-        with pytest.raises(UserNotFound):
-            await UserStatus.check_users_are_ready("test_game_id", user_ids)
+async def test_users_not_ready(user_id):
+    users = {user_id + i: generate_user_status(1, 0) for i in range(2)}
+    users[user_id + 2] = generate_user_status(max_active, 1, starting_game_id=1)
 
-    async def test_clear_game(self):
-        """
-        Tests if clear_game removes the game from the user's active_game and queued_games lists
-        """
-        game_id = "test_game_id"
-        user_ids = [randint(1, 10000), randint(1, 10000)]
+    for current_user_id, user_obj in users.items():
+        conn.json().set(current_user_id, ".", asdict(user_obj))
 
-        self.conn.json().set(user_ids[0], ".", asdict(test_state_active_game))
-        self.conn.json().set(user_ids[1], ".", asdict(test_state_queued_game_first_id))
+    assert not await UserStatus.check_users_are_ready(list(users.keys()), "5")
 
-        await UserStatus.clear_game(game_id, user_ids)
 
-        assert self.conn.json().get(user_ids[0]) == None
+async def test_add_notification(user_id):
+    test_user = generate_user_status(1, 0)
 
-        result = UserStatus.User(**self.conn.json().get(user_ids[1]))
-        assert result.queued_games == []
-        assert result.active_games[0] == "test_game_id_wrong"
+    conn.json().set(user_id, ".", asdict(test_user))
 
-    async def test_remove_active_game_no_queued(self):
-        """
-        Tests if remove_game removes the game from the user's active_game
-        and deletes user when there are no queued games
-        """
-        user_id = randint(1, 10000)
-        self.conn.json().set(user_id, ".", asdict(test_state_active_game))
+    await UserStatus.add_notification(user_id, "test")
 
-        await UserStatus._UserStatus__remove_game("test_game_id", user_id)
+    assert "test" in UserStatus.User(**conn.json().get(user_id)).notifications
 
-        assert self.conn.json().get(user_id) == None
 
-    async def test_remove_active_game_with_queued(self):
-        """
-        Tests if remove_game removes the game from the user's active_game and queued_games lists
-        moves up a queued game to active_game
-        """
-        user_id = randint(1, 10000)
-        self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
+async def test_add_existing_notification(user_id):
+    test_user = generate_user_status(1, 0, 1)
 
-        await UserStatus._UserStatus__remove_game("test_game_id", user_id)
+    conn.json().set(user_id, ".", asdict(test_user))
 
-        result = UserStatus.User(**self.conn.json().get(user_id))
-        assert result.active_games[-1] == test_state_queued_games.queued_games[0]
+    await UserStatus.add_notification(user_id, "0")
 
-    async def test_remove_game_existing_user_queued_game(self):
-        """
-        Tests if remove_game removes the game from the user's queued_games list
-        when the user exists and the game is in the queued_games list
-        """
-        user_id = randint(1, 10000)
-        self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
+    assert len(UserStatus.User(**conn.json().get(user_id)).notifications) == 1
 
-        await UserStatus._UserStatus__remove_game("test_game_id_2", user_id)
 
-        result = UserStatus.User(**self.conn.json().get(user_id))
+async def test_remove_notification(user_id):
+    test_user = generate_user_status(1, 0, 1)
 
-        assert result.queued_games == []
-        assert result.active_games == test_state_queued_games.active_games
+    conn.json().set(user_id, ".", asdict(test_user))
 
-    async def test_remove_nonexistent_game(self):
-        """ "
-        Tests if remove_game raises ActiveGameNotFound when the game is not in the
-        user's active_game or queued_games
-        """
-        user_id = randint(1, 10000)
-        self.conn.json().set(user_id, ".", asdict(test_state_queued_games))
+    assert await UserStatus.remove_notification(user_id, "0")
 
-        with pytest.raises(GameNotFound):
-            await UserStatus._UserStatus__remove_game("abc", user_id)
+    assert len(UserStatus.User(**conn.json().get(user_id)).notifications) == 0
 
-    async def test_remove_game_nonexistent_user(self):
-        """
-        Tests if remove_game raises UserNotFound when the user does not exist
-        """
-        user_id = randint(1, 10000)
 
-        with pytest.raises(ValueError):
-            await UserStatus._UserStatus__remove_game("abc", user_id)
+async def test_nonexistent_notification(user_id):
+    test_user = generate_user_status(1, 0, 1)
+
+    conn.json().set(user_id, ".", asdict(test_user))
+
+    assert not await UserStatus.remove_notification(user_id, "test")
+
+
+async def test_set_notification_id(user_id):
+    test_user = generate_user_status(1, 0, 1)
+
+    conn.json().set(user_id, ".", asdict(test_user))
+
+    await UserStatus.set_notification_id(user_id, 1)
+
+    assert UserStatus.User(**conn.json().get(user_id)).notification_id == 1
+
+
+async def test_clear_game(user_id):
+    user_count = 3
+
+    users = {
+        user_id + i: generate_user_status(1, 0, starting_game_id=max_active - 1)
+        for i in range(user_count - 1)
+    }
+    users[user_id + user_count - 1] = generate_user_status(max_active, 1)
+    users[user_id + user_count - 1].notifications = [f"{max_active-1}"]
+
+    for current_user_id, user_obj in users.items():
+        conn.json().set(current_user_id, ".", asdict(user_obj))
+
+    (moved_up_games, removed_notifications) = await UserStatus.clear_game(
+        cast(List[UserId], list(users.keys())), str(max_active - 1)
+    )
+
+    assert moved_up_games == set(f"{max_active}")
+    assert removed_notifications == [user_id + user_count - 1]
+
+    for i in range(user_count - 1):
+        assert conn.json().get(i) is None
+
+    result = UserStatus.User(**conn.json().get(user_id + user_count - 1))
+
+    assert str(max_active) in result.active_games
+    assert len(result.queued_games) == 0
+    assert len(result.active_games) == max_active

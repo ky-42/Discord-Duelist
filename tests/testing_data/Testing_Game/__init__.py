@@ -22,7 +22,7 @@ class TestingGame(GameModule):
     def get_details() -> GameModuleDetails:
         return GameModuleDetails(
             min_users=2,
-            max_users=2,
+            max_users=4,
         )
 
     @staticmethod

@@ -1,5 +1,3 @@
-import random
-import string
 from dataclasses import asdict, dataclass
 
 import pytest
@@ -7,8 +5,12 @@ import redis
 
 from data_wrappers.game_data import GameData
 from exceptions import GameNotFound
+from tests.testing_data.data_generation import game_id
+
+pytestmark = pytest.mark.asyncio(scope="module")
 
 db_number = GameData._GameData__db_number  # type: ignore
+conn = redis.Redis(db=db_number)
 
 
 @dataclass
@@ -20,42 +22,40 @@ class DataClassInherited:
 test_data = DataClassInherited("test", -1)
 
 
-class TestGameData:
-    conn = redis.Redis(db=db_number)
-    pytestmark = pytest.mark.asyncio
+@pytest.fixture(scope="module", autouse=True)
+def setup_delete_db():
+    yield
 
-    @pytest.fixture(scope="class", autouse=True)
-    def setup_delete_db(self):
-        yield
+    # After tests in this class clears db
+    conn.flushdb()
 
-        # After tests in this class clears db
-        TestGameData.conn.flushdb()
 
-    @pytest.fixture
-    def game_id(self):
-        return "".join(random.choices(string.ascii_letters + string.digits, k=16))
+async def test_successful_retrive(game_id):
+    conn.json().set(game_id, ".", asdict(test_data))
 
-    async def test_successful_retrive(self, game_id):
-        TestGameData.conn.json().set(game_id, ".", asdict(test_data))
+    fetched_data = await GameData.get(game_id, DataClassInherited)
 
-        fetched_data = await GameData.get(game_id, DataClassInherited)
+    assert isinstance(fetched_data, DataClassInherited)
 
-        assert isinstance(fetched_data, DataClassInherited)
+    assert fetched_data == test_data
 
-        assert fetched_data == test_data
 
-    async def test_unsuccessful_retrive(self, game_id):
-        with pytest.raises(GameNotFound):
-            await GameData.get(game_id, DataClassInherited)
+async def test_unsuccessful_retrive(game_id):
+    with pytest.raises(GameNotFound):
+        await GameData.get(game_id, DataClassInherited)
 
-    async def test_store_data(self, game_id):
-        await GameData.store(game_id, test_data)
 
-        stored_data = TestGameData.conn.json().get(game_id)
+async def test_store_data(game_id):
+    await GameData.store(game_id, test_data)
 
-        assert stored_data == asdict(test_data)
+    stored_data = conn.json().get(game_id)
 
-    async def test_delete_data(self, game_id):
-        TestGameData.conn.json().set(game_id, ".", asdict(test_data))
+    assert stored_data == asdict(test_data)
 
-        await GameData.delete(game_id)
+
+async def test_delete_data(game_id):
+    conn.json().set(game_id, ".", asdict(test_data))
+
+    await GameData.delete(game_id)
+
+    assert conn.json().get(game_id) is None

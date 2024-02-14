@@ -13,7 +13,7 @@ from data_types import DiscordMessage, GameId, UserId
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
-from game_modules.game_module_loading import GameModuleLoading
+from game_modules import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, InviteOptions
 

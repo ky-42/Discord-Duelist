@@ -6,7 +6,7 @@ from bot import bot
 from data_types import DiscordMessage, GameId, UserId
 from data_wrappers import GameData, GameStatus, UserStatus
 from game_handling.game_notifications import GameNotifications
-from game_modules.game_module_loading import GameModuleLoading
+from game_modules import GameModuleLoading
 
 
 class GameAdmin:
@@ -25,7 +25,8 @@ class GameAdmin:
         Args:
             game_status (GameStatus.Game): Starting game status.
             users (dict[str, str]): Should be in format {user_id: username} where
-                each entry is a based on selected users.
+                each entry is a based on selected users. Should not include the
+                starting user.
 
         Raises:
             ValueError: Raised when the game details are invalid
@@ -65,9 +66,9 @@ class GameAdmin:
     async def __user_accepted(game_id: GameId, user_id: int) -> None:
         """Called when a user accepts a game"""
 
-        unaccepted_list = await GameStatus.user_accepted(game_id, user_id)
+        pending_list = await GameStatus.user_accepted(game_id, user_id)
 
-        if len(unaccepted_list) == 0:
+        if len(pending_list) == 0:
             await GameAdmin.__start_game(game_id)
 
     @staticmethod
@@ -84,6 +85,7 @@ class GameAdmin:
                 # and user will be informed
                 await GameNotifications.max_games(game_id, user_id)
                 await GameAdmin.delete_game(game_id)
+                return
 
         if await UserStatus.check_users_are_ready(game_status.all_users, game_id):
             await GameNotifications.game_start(game_id)

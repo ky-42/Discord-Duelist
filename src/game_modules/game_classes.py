@@ -7,8 +7,7 @@ from data_types import DiscordMessage, GameId, UserId
 from data_types.protocols import IsDataclass
 from data_wrappers import GameData, GameStatus
 from data_wrappers.user_status import UserStatus
-from game_handling.game_admin import GameAdmin
-from game_handling.game_notifications import GameNotifications
+from game_handling import GameAdmin, GameNotifications
 from game_modules.utils import GameInfo, get_game_info
 
 
@@ -84,7 +83,7 @@ class GameModule(ABC):
     async def send_notification(game_id: GameId, user_id: UserId) -> None:
         """Send a notification to a user that they should reply to a game"""
 
-        await UserStatus.add_notifiction(user_id, game_id)
+        await UserStatus.add_notification(user_id, game_id)
         new_message_id = await GameNotifications.added_game_notification(user_id)
         await UserStatus.set_notification_id(user_id, new_message_id)
 
@@ -97,7 +96,7 @@ class GameModule(ABC):
 
         await UserStatus.remove_notification(user_id, game_id)
         if await GameNotifications.removed_game_notification(user_id):
-            await UserStatus.remove_notification_id(user_id)
+            await UserStatus.set_notification_id(user_id, None)
 
     @staticmethod
     async def store_game_data(game_id: GameId, game_data: IsDataclass) -> None:

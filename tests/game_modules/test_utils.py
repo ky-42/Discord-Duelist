@@ -7,16 +7,15 @@ from data_types import GameId
 from data_wrappers.game_status import GameStatus
 from game_modules.utils import GameInfo, get_game_info
 from tests.testing_data import Testing_Game
-from tests.testing_data.data_generation import create_fake_game_status
+from tests.testing_data.data_generation import generate_game_status
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_get_game_info(mocker: pytest_mock.MockFixture):
-    test_status = create_fake_game_status(
+    test_status = generate_game_status(
         state=0,
         game_module_name="Testing Game",
-        starting_user=0,
         user_count=2,
         pending_user_count=1,
     )
@@ -32,7 +31,7 @@ async def test_get_game_info(mocker: pytest_mock.MockFixture):
         game_info: GameInfo[GameStatus.Game, None], game_id: GameId
     ) -> None:
         assert game_info.GameStatus == test_status
-        assert game_info.GameData == None
+        assert game_info.GameData is None
 
         nonlocal called
         called += 1
@@ -41,7 +40,7 @@ async def test_get_game_info(mocker: pytest_mock.MockFixture):
     async def test_fn_data(
         game_info: GameInfo[None, Testing_Game.TestingGameData], game_id: GameId
     ) -> None:
-        assert game_info.GameStatus == None
+        assert game_info.GameStatus is None
         assert game_info.GameData == Testing_Game.TestingGameData("test")
 
         nonlocal called

@@ -9,7 +9,7 @@ from data_types import GameId, MessageId, UserId
 from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from exceptions import UserNotFound
-from game_modules.game_module_loading import GameModuleLoading
+from game_modules import GameModuleLoading
 from user_interfaces.game_embeds import game_info_embed, game_summary_embed
 from user_interfaces.game_views import InviteOptions
 
@@ -39,11 +39,10 @@ class GameNotifications:
                 when a user rejects the invite.
         """
 
-        for user_id in user_ids:
-            user_dm = await bot.get_dm_channel(user_id)
-            game_status = await GameStatus.get(game_id)
+        game_status = await GameStatus.get(game_id)
 
-            await user_dm.send(
+        for user_id in user_ids:
+            await (await bot.get_user_obj(user_id)).send(
                 embed=game_info_embed(
                     user_id,
                     f"{game_status.usernames[str(game_status.starting_user)]} wants to play a game!",
@@ -66,7 +65,7 @@ class GameNotifications:
         game_status = await GameStatus.get(game_id)
 
         for user_id in game_status.all_users:
-            await (await bot.get_user(int(user_id))).send(
+            await (await bot.get_user_obj(int(user_id))).send(
                 embed=game_info_embed(
                     user_id,
                     "Game Started",
@@ -81,10 +80,11 @@ class GameNotifications:
     @staticmethod
     async def game_queued(game_id: GameId) -> None:
         """Informs users that the game has been queued"""
+
         game_status = await GameStatus.get(game_id)
 
         for user_id in game_status.all_users:
-            await (await bot.get_user(int(user_id))).send(
+            await (await bot.get_user_obj(int(user_id))).send(
                 embed=game_info_embed(
                     user_id,
                     "Game Queued",
@@ -112,7 +112,7 @@ class GameNotifications:
         # Informs non-maxed users in game that the game will not be started
         for user_id in game_status.all_users:
             if user_id != maxed_user:
-                await (await bot.get_user(int(user_id))).send(
+                await (await bot.get_user_obj(int(user_id))).send(
                     embed=game_summary_embed(
                         [],
                         list(game_status.usernames.values()),
@@ -122,7 +122,7 @@ class GameNotifications:
                 )
 
         # Informs maxed user that the game will not be started
-        await (await bot.get_user(int(maxed_user))).send(
+        await (await bot.get_user_obj(int(maxed_user))).send(
             embed=game_summary_embed(
                 [],
                 list(game_status.usernames.values()),
@@ -150,37 +150,40 @@ class GameNotifications:
         Args:
             user_id (UserId): Id of the user to add the notification to.
 
+        Raises:
+            UserNotFound: Raised if the user is not found.
+
         Returns:
             MessageId: Id of the message sent to the user informing them of the
                 notification.
         """
 
         user_status = await UserStatus.get(user_id)
+
+        if not user_status:
+            raise UserNotFound(user_id)
+
         user_dm_channel = await bot.get_dm_channel(user_id)
 
-        if user_status:
-            if user_status.notification_id:
-                try:
-                    notification_message = await user_dm_channel.fetch_message(
-                        user_status.notification_id
-                    )
-
-                except:
-                    pass
-
-                else:
-                    await notification_message.delete()
-
-            new_message = await user_dm_channel.send(
-                GameNotifications.__get_game_notifications_message(
-                    len(user_status.notifications)
+        if user_status.notification_id:
+            try:
+                notification_message = await user_dm_channel.fetch_message(
+                    user_status.notification_id
                 )
+
+            except:
+                pass
+
+            else:
+                await notification_message.delete()
+
+        new_message = await user_dm_channel.send(
+            GameNotifications.__get_game_notifications_message(
+                len(user_status.notifications)
             )
+        )
 
-            return new_message.id
-
-        else:
-            raise UserNotFound(user_id)
+        return new_message.id
 
     @staticmethod
     async def removed_game_notification(user_id: UserId) -> bool:
@@ -189,36 +192,38 @@ class GameNotifications:
         Args:
             user_id (UserId): Id of the user to remove the notification from.
 
+        Raises:
+            UserNotFound: Raised if the user is not found.
+
         Returns:
             bool: Whether the notification message was deleted. True if deleted.
         """
 
-        user = await UserStatus.get(user_id)
-        user_dm_channel = await bot.get_dm_channel(user_id)
+        user_status = await UserStatus.get(user_id)
 
-        if user:
-            if user.notification_id:
-                notification_message = await user_dm_channel.fetch_message(
-                    user.notification_id
+        if not user_status:
+            raise UserNotFound(user_id)
+
+        if user_status.notification_id:
+            user_dm_channel = await bot.get_dm_channel(user_id)
+            notification_message = await user_dm_channel.fetch_message(
+                user_status.notification_id
+            )
+
+            if len(user_status.notifications) == 0:
+                await notification_message.delete()
+                return True
+
+            await notification_message.edit(
+                content=GameNotifications.__get_game_notifications_message(
+                    len(user_status.notifications)
                 )
-
-                if len(user.notifications) == 0:
-                    await notification_message.delete()
-                    return True
-
-                await notification_message.edit(
-                    content=GameNotifications.__get_game_notifications_message(
-                        len(user.notifications)
-                    )
-                )
-
-            else:
-                if len(user.notifications) > 0:
-                    # If for some reason the user has notifications but no notification message
-                    await GameNotifications.added_game_notification(user_id)
+            )
 
         else:
-            raise UserNotFound(user_id)
+            if len(user_status.notifications) > 0:
+                # If for some reason the user has notifications but no notification message
+                await GameNotifications.added_game_notification(user_id)
 
         return False
 
@@ -235,23 +240,18 @@ class GameNotifications:
 
         cancelled_game = await GameStatus.get(game_id)
 
-        quiting_user_object = await bot.get_user(quiting_user)
+        quiting_user_object = await bot.get_user_obj(quiting_user)
 
-        user_objects = [
-            await bot.get_user(game_user_id)
-            for game_user_id in cancelled_game.all_users
-            if game_user_id != quiting_user
-        ]
-
-        for user_object in user_objects:
-            await user_object.send(
-                embed=game_summary_embed(
-                    [],
-                    list(cancelled_game.usernames.values()),
-                    cancelled_game,
-                    f"Game was cancelled because {quiting_user_object.name} quit",
+        for user_id in cancelled_game.all_users:
+            if user_id != quiting_user:
+                await (await bot.get_user_obj(user_id)).send(
+                    embed=game_summary_embed(
+                        [],
+                        list(cancelled_game.usernames.values()),
+                        cancelled_game,
+                        f"Game was cancelled because {quiting_user_object.name} quit",
+                    )
                 )
-            )
 
     @staticmethod
     async def game_expired(game_id: GameId) -> None:
@@ -264,9 +264,7 @@ class GameNotifications:
         expired_game = await GameStatus.get(game_id)
 
         for user_id in expired_game.all_users:
-            dm = await bot.get_dm_channel(user_id)
-
-            await dm.send(
+            await (await bot.get_user_obj(user_id)).send(
                 embed=game_summary_embed(
                     [],
                     list(expired_game.usernames.values()),
@@ -323,7 +321,7 @@ class GameNotifications:
                 game_status.usernames[str(user_id)] for user_id in all_user_ids
             ]
 
-            await (await bot.get_user(user)).send(
+            await (await bot.get_user_obj(user)).send(
                 embed=game_summary_embed(
                     winner_names, other_users_names, game_status, footer
                 )

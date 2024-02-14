@@ -79,10 +79,6 @@ def game_info_embed(
     if len(other_user_names):
         embed.add_field(name="Other Players", value=", ".join(other_user_names))
 
-    # Adds game thumbnail to embed
-    file = discord.File(game_details.thumbnail_file_path, filename="abc.png")
-    embed.set_thumbnail(url=f"attachment://{file.filename}")
-
     if footer_message:
         embed.set_footer(text=footer_message)
 
