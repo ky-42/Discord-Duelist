@@ -1,8 +1,5 @@
-import random
-import string
 from datetime import timedelta
 from random import randint
-from typing import List, Literal
 
 import discord
 from discord import app_commands
@@ -14,6 +11,7 @@ from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
 from game_modules import GameModuleLoading
+from tests.testing_data.data_generation import generate_game_status
 from user_interfaces.game_embeds import game_info_embed
 from user_interfaces.game_views import EmbedCycle, GameSelect, InviteOptions
 
@@ -32,8 +30,9 @@ class Debug(commands.GroupCog, name="debug"):
     async def send_game_confirm(
         self,
         interaction: discord.Interaction,
+        test_game_module_name,
     ) -> None:
-        fake_game = TestingStateGeneration.create_game_state(interaction.user.id)
+        fake_game = generate_game_status(0, "", randint(3, 6), randint(1, 3))
 
         async def test_accept():
             print("accept")

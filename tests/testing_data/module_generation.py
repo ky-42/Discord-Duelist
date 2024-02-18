@@ -34,6 +34,14 @@ def add_fake_game_module():
         raise FileNotFoundError("GAME_MODULES_DIR env var not set")
 
 
+def add_test_game_wrapper(*args, **kwargs):
+    def wrapper(fn):
+        test_game_module_gen = add_test_game_module()
+        fn(*args, **kwargs, test_game_module_name=next(test_game_module_gen))
+
+    return wrapper
+
+
 @pytest.fixture()
 def add_test_game_module():
     """Moves the Testing Game module to the game_modules directory"""
