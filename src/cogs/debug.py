@@ -1,5 +1,6 @@
 from datetime import timedelta
 from random import randint
+from typing import Dict, List, Optional, Tuple
 
 import discord
 from discord import app_commands
@@ -11,18 +12,106 @@ from data_wrappers.game_status import GameStatus
 from data_wrappers.user_status import UserStatus
 from data_wrappers.utils import RedisDb
 from game_modules import GameModuleLoading
-from tests.testing_data.data_generation import generate_game_status
-from user_interfaces.game_embeds import game_info_embed
-from user_interfaces.game_views import EmbedCycle, GameSelect, InviteOptions
+from user_interfaces.game_embeds import game_info_embed, game_summary_embed
+from user_interfaces.game_views import EmbedCycle, GameSelect, GetUsers, InviteOptions
 
 
 class Debug(commands.GroupCog, name="debug"):
-    """Cog used to manipulate data and send items for testing purposes"""
+    """Cog used to manipulate data and test ui elements"""
 
     def __init__(self) -> None:
         super().__init__()
 
+    helpers = app_commands.Group(name="helpers", description="Helper commands")
     ui_testing = app_commands.Group(name="ui", description="testing for UI elements")
+
+    @helpers.command(
+        name="set-game-expire", description="Changes the expire time of the game"
+    )
+    async def set_game_expire(
+        self, interaction: discord.Interaction, game_id: GameId, seconds: int
+    ):
+        await GameStatus.set_expiry(game_id, timedelta(seconds=seconds))
+        await interaction.response.send_message("Done")
+
+    @helpers.command(
+        name="add-accepted-fake-games", description="Adds fake games to user"
+    )
+    async def fill_games(
+        self, interaction: discord.Interaction, amount: int = 6
+    ) -> None:
+        """Adds fake games to the calling user.
+
+        These games will cause errors if they are interacted with.
+        """
+
+        user_status = await UserStatus.get(interaction.user.id)
+
+        active_game_offset = 0
+        if user_status:
+            active_game_offset = len(user_status.active_games)
+
+        for _game_num in range(amount):
+            state = 1
+            if (
+                _game_num + active_game_offset
+                < UserStatus._UserStatus__max_active_games
+            ):
+                state = 2
+
+            game_state = GameStatus.Game.generate_fake(
+                state,
+                "Testing_Game",
+                randint(2, 7),
+                0,
+                [(interaction.user.id, interaction.user.name)],
+            )
+
+            game_id = await GameStatus.add(game_state, timedelta(minutes=50))
+
+            for user_id in game_state.all_users:
+                await UserStatus.join_game(user_id, game_id)
+
+        await interaction.response.send_message(content="Done")
+
+    @helpers.command(
+        name="clear-games",
+        description="Removes all games from a user. Should be used after adding fake games",
+    )
+    async def clear_games(self, interaction: discord.Interaction):
+        user = await UserStatus.get(interaction.user.id)
+
+        if user:
+            for game_id in user.active_games + user.queued_games:
+                await GameStatus.delete(game_id)
+                await UserStatus.clear_game([interaction.user.id], game_id)
+
+        await interaction.response.send_message(content="Done")
+
+    @helpers.command(name="flush-redis", description="Runs flush db command on redis.")
+    async def flush(self, interaction: discord.Interaction) -> None:
+        await RedisDb.flush_db()
+        await interaction.response.send_message(content="Done")
+
+    @ui_testing.command(
+        name="send-get-users",
+        description="Send yourself a get users message. Should be used in a server",
+    )
+    async def send_get_users(
+        self,
+        interaction: discord.Interaction,
+        min_users_to_pick: Optional[int],
+        max_users_to_pick: Optional[int],
+    ) -> None:
+        async def test_func(users: Dict[str, str]) -> DiscordMessage:
+            print(users)
+            return DiscordMessage("Done")
+
+        min_users = 1 if min_users_to_pick is None else min_users_to_pick
+        max_users = min_users if max_users_to_pick is None else max_users_to_pick
+        await interaction.response.send_message(
+            view=GetUsers(interaction.user.id, min_users, max_users, test_func)
+        )
 
     @ui_testing.command(
         name="send-game-confirm", description="Send yourself a comfirm message"
@@ -30,9 +119,12 @@ class Debug(commands.GroupCog, name="debug"):
     async def send_game_confirm(
         self,
         interaction: discord.Interaction,
-        test_game_module_name,
     ) -> None:
-        fake_game = generate_game_status(0, "", randint(3, 6), randint(1, 3))
+        """Tests game_info_embed and InviteOptions"""
+
+        fake_game = GameStatus.Game.generate_fake(
+            0, "Tic Tac Toe", randint(3, 6), randint(1, 3)
+        )
 
         async def test_accept():
             print("accept")
@@ -65,15 +157,21 @@ class Debug(commands.GroupCog, name="debug"):
         async def test_func(game_id: GameId, user_id: UserId):
             return DiscordMessage(f"{game_id} {user_id}")
 
-        abc = {
-            str(game_number): TestingStateGeneration.create_game_state(
-                interaction.user.id
+        generated_games = {
+            str(game_number): GameStatus.Game.generate_fake(
+                2,
+                "Testing_Game",
+                randint(2, 7),
+                0,
+                [(interaction.user.id, interaction.user.name)],
             )
             for game_number in range(2, 10)
         }
 
         await interaction.response.send_message(
-            view=GameSelect(interaction.user.id, abc, test_func, "Select game")
+            view=GameSelect(
+                interaction.user.id, generated_games, test_func, "Select game"
+            )
         )
 
     @ui_testing.command(
@@ -83,80 +181,44 @@ class Debug(commands.GroupCog, name="debug"):
         self,
         interaction: discord.Interaction,
     ) -> None:
-        test_data = []
+        test_embeds: List[Tuple[discord.Embed, str]] = []
 
         for embed_number in range(randint(2, 6)):
             new_embed = discord.Embed(title=str(embed_number))
 
-            test_data.append([new_embed, embed_number])
+            test_embeds.append((new_embed, str(embed_number)))
 
         await interaction.response.send_message(
-            view=EmbedCycle(test_data), embed=test_data[0][0]
+            view=EmbedCycle(test_embeds), embed=test_embeds[0][0]
         )
 
-    @app_commands.command(
-        name="add-accepted-fake-games", description="adds fake game's to user."
+    @ui_testing.command(
+        name="send-game-summary", description="Send yourself a game summary message"
     )
-    async def fill_games(
-        self, interaction: discord.Interaction, amount: int = 6
+    async def send_game_summary(
+        self,
+        interaction: discord.Interaction,
     ) -> None:
-        """Should not be used as real games as users in game don't exists this means not having them unqueued and things like that"""
+        game = GameStatus.Game.generate_fake(
+            2,
+            "Testing_Game",
+            randint(2, 7),
+            0,
+            [(interaction.user.id, interaction.user.name)],
+        )
 
-        user_status = await UserStatus.get(interaction.user.id)
-
-        active_game_offset = 0
-        if user_status:
-            active_game_offset = len(user_status.active_games)
-
-        for _game_num in range(amount):
-            state = 1
-            if (
-                _game_num + active_game_offset
-                < UserStatus._UserStatus__max_active_games
-            ):
-                state = 2
-
-            game_state = TestingStateGeneration.create_game_state(
-                user_one=interaction.user.id, state=state
+        await interaction.response.send_message(
+            embed=game_summary_embed(
+                [interaction.user.name],
+                [
+                    username
+                    for username in game.usernames.values()
+                    if username != interaction.user.name
+                ],
+                game,
+                ending_reason="Test",
             )
-
-            game_id = await GameStatus.add(game_state, timedelta(minutes=50))
-
-            for user_id in game_state.all_users:
-                await UserStatus.join_game(user_id, game_id)
-
-        await interaction.response.send_message(content="Done")
-
-    @app_commands.command(
-        name="clear-fake-games",
-        description="Removes all games from a user but not other the users in the game",
-    )
-    async def clear_games(self, interaction: discord.Interaction):
-        user_sfs = await UserStatus.get(interaction.user.id)
-
-        if user_sfs:
-            for game_id in user_sfs.active_games + user_sfs.queued_games:
-                await GameStatus.delete(game_id)
-                await UserStatus.clear_game([interaction.user.id], game_id)
-
-    @app_commands.command(name="flush-redis", description="Runs flush db command")
-    async def flush(self, interaction: discord.Interaction) -> None:
-        await RedisDb.flush_db()
-        await interaction.response.send_message(content="Done")
-
-    @app_commands.command(
-        name="set-game-expire", description="Changes the expire time of the game"
-    )
-    async def set_game_expire(
-        self, interaction: discord.Interaction, game_id: GameId, seconds: int
-    ):
-        await GameStatus.set_expiry(game_id, timedelta(seconds=seconds))
-        await interaction.response.send_message("Done")
-
-    @app_commands.command(name="test")
-    async def test(self, interaction: discord.Interaction):
-        await GameStatus.delete("2")
-        await interaction.response.send_message("Done")
+        )
 
 
 async def setup(bot: Bot) -> None:

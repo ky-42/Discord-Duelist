@@ -10,14 +10,14 @@ import redis
 from data_wrappers import GameStatus
 from data_wrappers.utils import RedisDb
 from exceptions import GameNotFound, UserNotFound
-from tests.testing_data.data_generation import game_id, generate_game_status
+from tests.testing_data.data_generation import game_id
 
 db_number = GameStatus._GameStatus__db_number  # type: ignore
 
 conn = redis.Redis(db=db_number)
 pytestmark = pytest.mark.asyncio(scope="module")
 
-test_state = generate_game_status(
+test_state = GameStatus.Game.generate_fake(
     state=0, game_module_name="Testing_Game", user_count=2, pending_user_count=1
 )
 
@@ -67,7 +67,7 @@ async def test_set_expire(game_id):
 
 
 async def test_user_accepted(game_id):
-    sample = generate_game_status(
+    sample = GameStatus.Game.generate_fake(
         state=0, game_module_name="Testing_Game", user_count=3, pending_user_count=2
     )
 

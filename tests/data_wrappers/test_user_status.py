@@ -7,7 +7,7 @@ import redis
 
 from data_types import UserId
 from data_wrappers import UserStatus
-from tests.testing_data.data_generation import generate_user_status, user_id
+from tests.testing_data.data_generation import user_id
 
 db_number = UserStatus._UserStatus__db_number  # type: ignore
 
@@ -28,7 +28,7 @@ def setup_delete_db():
 
 
 async def test_join_game(user_id):
-    test_user = generate_user_status(max_active - 1, 0)
+    test_user = UserStatus.User.generate_fake(max_active - 1, 0)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -57,7 +57,7 @@ async def test_join_game_nonexistent_user(user_id):
 
 
 async def test_join_game_full(user_id):
-    test_user = generate_user_status(max_active, max_queued)
+    test_user = UserStatus.User.generate_fake(max_active, max_queued)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -65,7 +65,7 @@ async def test_join_game_full(user_id):
 
 
 async def test_get_status_existing_user(user_id):
-    test_user = generate_user_status(1, 0)
+    test_user = UserStatus.User.generate_fake(1, 0)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -77,7 +77,7 @@ async def test_get_status_nonexistent_user(user_id):
 
 
 async def test_check_users_are_ready_all_ready(user_id):
-    users = {user_id + i: generate_user_status(1, 0) for i in range(3)}
+    users = {user_id + i: UserStatus.User.generate_fake(1, 0) for i in range(3)}
 
     for current_user_id, user_obj in users.items():
         conn.json().set(current_user_id, ".", asdict(user_obj))
@@ -86,8 +86,10 @@ async def test_check_users_are_ready_all_ready(user_id):
 
 
 async def test_users_not_ready(user_id):
-    users = {user_id + i: generate_user_status(1, 0) for i in range(2)}
-    users[user_id + 2] = generate_user_status(max_active, 1, starting_game_id=1)
+    users = {user_id + i: UserStatus.User.generate_fake(1, 0) for i in range(2)}
+    users[user_id + 2] = UserStatus.User.generate_fake(
+        max_active, 1, starting_game_id=1
+    )
 
     for current_user_id, user_obj in users.items():
         conn.json().set(current_user_id, ".", asdict(user_obj))
@@ -96,7 +98,7 @@ async def test_users_not_ready(user_id):
 
 
 async def test_add_notification(user_id):
-    test_user = generate_user_status(1, 0)
+    test_user = UserStatus.User.generate_fake(1, 0)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -106,7 +108,7 @@ async def test_add_notification(user_id):
 
 
 async def test_add_existing_notification(user_id):
-    test_user = generate_user_status(1, 0, 1)
+    test_user = UserStatus.User.generate_fake(1, 0, 1)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -116,7 +118,7 @@ async def test_add_existing_notification(user_id):
 
 
 async def test_remove_notification(user_id):
-    test_user = generate_user_status(1, 0, 1)
+    test_user = UserStatus.User.generate_fake(1, 0, 1)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -126,7 +128,7 @@ async def test_remove_notification(user_id):
 
 
 async def test_nonexistent_notification(user_id):
-    test_user = generate_user_status(1, 0, 1)
+    test_user = UserStatus.User.generate_fake(1, 0, 1)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -134,7 +136,7 @@ async def test_nonexistent_notification(user_id):
 
 
 async def test_set_notification_id(user_id):
-    test_user = generate_user_status(1, 0, 1)
+    test_user = UserStatus.User.generate_fake(1, 0, 1)
 
     conn.json().set(user_id, ".", asdict(test_user))
 
@@ -147,10 +149,11 @@ async def test_clear_game(user_id):
     user_count = 3
 
     users = {
-        user_id + i: generate_user_status(1, 0, starting_game_id=max_active - 1)
+        user_id
+        + i: UserStatus.User.generate_fake(1, 0, starting_game_id=max_active - 1)
         for i in range(user_count - 1)
     }
-    users[user_id + user_count - 1] = generate_user_status(max_active, 1)
+    users[user_id + user_count - 1] = UserStatus.User.generate_fake(max_active, 1)
     users[user_id + user_count - 1].notifications = [f"{max_active-1}"]
 
     for current_user_id, user_obj in users.items():

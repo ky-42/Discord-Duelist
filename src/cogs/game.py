@@ -44,8 +44,9 @@ class Game(commands.Cog):
             content="Please select the users you want to play with",
             view=GetUsers(
                 interaction.user.id,
-                game_module_details.min_users,
-                game_module_details.max_users,
+                # -1 because the starting user is already in the game
+                game_module_details.min_users - 1,
+                game_module_details.max_users - 1,
                 # Partial is used to pass the game object to the callback letting
                 # the ui be decoupled from the game object
                 functools.partial(GameAdmin.users_selected, game_object),

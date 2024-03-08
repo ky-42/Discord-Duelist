@@ -41,14 +41,14 @@ class GetUsers(ui.View):
     def __init__(
         self,
         user_id: UserId,
-        min: int,
-        max: int,
+        min_users: int,
+        max_users: int,
         users_selected_callback: Callable[[Dict[str, str]], Awaitable[DiscordMessage]],
     ):
         """
         Args:
-            min (int): Minimum number of users that must be selected.
-            max (int): Maximum number of users that can be selected.
+            min_users (int): Minimum number of users that must be selected.
+            max_users (int): Maximum number of users that can be selected.
             user_id (UserId): Id of user the view will be sent to.
             users_selected_callback (Callable[[Dict[str, str]], Awaitable[DiscordMessage]]):
                 Function that is called when user if finished selecting other
@@ -66,11 +66,14 @@ class GetUsers(ui.View):
         # Creates the dropdown menu
         self.__user_select = ui.UserSelect(
             placeholder="Select a user please!",
-            min_values=min - 1,
-            max_values=max - 1,
+            min_values=min_users,
+            max_values=max_users,
             row=0,
         )
         self.add_item(self.__user_select)
+
+        self.min_users = min_users
+        self.max_users = max_users
 
         # Sets a callback when a user selects a user but doesent confirm
         self.__user_select.callback = defer
@@ -85,6 +88,15 @@ class GetUsers(ui.View):
         if str(self.__starting_user) in selected_users.keys():
             return await interaction.response.send_message(
                 "Stop trying to play with yourself", ephemeral=True, delete_after=5
+            )
+
+        if (
+            not len(selected_users)
+            or self.min_users > len(selected_users)
+            or self.max_users < len(selected_users)
+        ):
+            return await interaction.response.send_message(
+                "Invalid number of users!", ephemeral=True, delete_after=5
             )
 
         try:

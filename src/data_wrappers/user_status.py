@@ -47,6 +47,46 @@ class UserStatus:
         notifications: List[GameId]
         notification_id: Optional[MessageId] = None
 
+        @staticmethod
+        def generate_fake(
+            active_games_count: int,
+            queued_games_count: int,
+            notifications_count: int = 0,
+            has_notification_msg: bool = False,
+            starting_game_id: int = 0,
+        ):
+            """Creates fake user status.
+
+            The active games are the values from 0 to active_games_count - 1.
+
+            The queued games are the values from active_games_count to:
+                active_games_count + queued_games_count - 1
+
+            The notifications are the values from 0 to notifications_count - 1
+
+            If has_notification_msg is True, the notification_id is set to 0
+            """
+
+            return UserStatus.User(
+                active_games=list(
+                    map(
+                        str,
+                        range(starting_game_id, starting_game_id + active_games_count),
+                    )
+                ),
+                queued_games=list(
+                    map(
+                        str,
+                        range(
+                            starting_game_id + active_games_count,
+                            starting_game_id + queued_games_count + active_games_count,
+                        ),
+                    )
+                ),
+                notifications=list(map(str, range(notifications_count))),
+                notification_id=None if not has_notification_msg else 0,
+            )
+
     @staticmethod
     async def join_game(
         user_id: UserId,

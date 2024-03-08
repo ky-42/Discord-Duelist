@@ -4,15 +4,15 @@ import pytest
 import pytest_mock
 
 from data_types import DiscordMessage
+from data_wrappers.game_status import GameStatus
 from game_handling import GameAdmin
 from tests.testing_data import Testing_Game
-from tests.testing_data.data_generation import generate_game_status
 
 pytestmark = pytest.mark.asyncio(scope="module")
 
 
 async def test_user_selected(mocker: pytest_mock.MockFixture):
-    test_status = generate_game_status(
+    test_status = GameStatus.Game.generate_fake(
         state=0,
         game_module_name="Testing Game",
         user_count=1,
@@ -37,7 +37,7 @@ async def test_user_selected(mocker: pytest_mock.MockFixture):
 
 
 async def test_user_accepted(mocker: pytest_mock.MockFixture):
-    test_status = generate_game_status(
+    test_status = GameStatus.Game.generate_fake(
         state=0,
         game_module_name="Testing Game",
         user_count=2,
@@ -57,7 +57,7 @@ async def test_user_accepted(mocker: pytest_mock.MockFixture):
 async def test_start_game_max_games(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=0,
             game_module_name="Testing Game",
             user_count=2,
@@ -72,14 +72,14 @@ async def test_start_game_max_games(mocker: pytest_mock.MockFixture):
 
     await GameAdmin._GameAdmin__start_game("game_id")  # type: ignore
 
-    max_games_call.assert_called_once_with("game_id", 0)
+    max_games_call.assert_called_once_with("game_id", 2)
     delete_call.assert_called_once_with("game_id")
 
 
 async def test_start_game_que(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=0,
             game_module_name="Testing Game",
             user_count=2,
@@ -104,7 +104,7 @@ async def test_start_game_que(mocker: pytest_mock.MockFixture):
 async def test_start_game(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=0,
             game_module_name="Testing Game",
             user_count=2,
@@ -138,7 +138,7 @@ async def test_start_game(mocker: pytest_mock.MockFixture):
 async def test_reply(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=2,
             game_module_name="Testing Game",
             user_count=2,
@@ -162,7 +162,7 @@ async def test_reply(mocker: pytest_mock.MockFixture):
 async def test_delete_unstarted_game(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=0,
             game_module_name="Testing Game",
             user_count=2,
@@ -180,7 +180,7 @@ async def test_delete_unstarted_game(mocker: pytest_mock.MockFixture):
 async def test_delete_game(mocker: pytest_mock.MockFixture):
     mocker.patch(
         "data_wrappers.GameStatus.get",
-        return_value=generate_game_status(
+        return_value=GameStatus.Game.generate_fake(
             state=2,
             game_module_name="Testing Game",
             user_count=2,

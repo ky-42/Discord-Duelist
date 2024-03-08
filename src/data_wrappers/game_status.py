@@ -5,7 +5,7 @@ import random
 import string
 from dataclasses import asdict, dataclass
 from datetime import timedelta
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Tuple
 
 import redis
 import redis.asyncio as redis_sync
@@ -71,6 +71,54 @@ class GameStatus:
                 for user_id in self.pending_users
                 if user_id not in self.pending_users
             ]
+
+        @staticmethod
+        def generate_fake(
+            state: Literal[0, 1, 2],
+            game_module_name: str,
+            user_count: int,
+            pending_user_count: int,
+            users_to_include: Optional[List[Tuple[UserId, str]]] = None,
+        ):
+            """Creates fake game status.
+
+            User ids are the values from 0 to user_count - 1 with the usernames
+                being "User 0" to "User {user_count - 1}".
+
+            Starting user is 0.
+
+            The pending users are the values from user_count - 1
+                to user_count - pending_user_count - 1.
+
+            If users_to_include is not None, listed ids will be put in non-pending users.
+            If user from users_to_include is put in pending then it will be users at
+                the start of the list.
+            """
+
+            all_users = []
+            pending_users = []
+            usernames = {}
+            for i in range(user_count, 0, -1):
+                # Adds users from users_to_include first
+                if users_to_include and len(users_to_include):
+                    user_id, username = users_to_include.pop()
+                    usernames[user_id] = username
+                    all_users.append(user_id)
+                else:
+                    usernames[str(i)] = f"User {i}"
+                    all_users.append(i)
+
+                if i < pending_user_count:
+                    pending_users.append(i)
+
+            return GameStatus.Game(
+                state=state,
+                game_module_name=game_module_name,
+                starting_user=all_users[-1],
+                all_users=all_users,
+                pending_users=pending_users,
+                usernames=usernames,
+            )
 
     # Functions to be called when a game expires. The key is the name of the
     # function and the value is the function itself which should accept the
