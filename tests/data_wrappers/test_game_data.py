@@ -23,7 +23,7 @@ test_data = DataClassInherited("test", -1)
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_delete_db():
+def clear_db():
     yield
 
     # After tests in this class clears db

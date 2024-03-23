@@ -135,7 +135,11 @@ class GameStatus:
     def __create_game_id() -> GameId:
         """Returns a random game id"""
 
-        return "".join(random.choices(string.ascii_letters + string.digits, k=16))
+        return "".join(
+            random.choices(
+                string.ascii_letters + string.digits + string.punctuation, k=8
+            )
+        )
 
     @staticmethod
     async def add(game_status: Game, expire_time: timedelta) -> GameId:

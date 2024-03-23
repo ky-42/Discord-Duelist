@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from random import randint
 from typing import List, cast
 
 import pytest
@@ -20,7 +19,7 @@ max_queued = UserStatus._UserStatus__max_queued_games  # type: ignore
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_delete_db():
+def clear_db():
     yield
 
     # After tests in this class clears db

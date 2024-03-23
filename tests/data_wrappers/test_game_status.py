@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import random
 from dataclasses import asdict
 from datetime import timedelta
@@ -23,7 +22,7 @@ test_state = GameStatus.Game.generate_fake(
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_delete_db():
+def clear_db():
     yield
 
     # After tests in this class clears db

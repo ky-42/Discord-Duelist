@@ -14,7 +14,7 @@ pytestmark = pytest.mark.asyncio(scope="module")
 
 
 @pytest_asyncio.fixture(scope="module", autouse=True)
-async def setup_delete_db():
+async def clear_db():
     yield
 
     # After tests in this class clears db
