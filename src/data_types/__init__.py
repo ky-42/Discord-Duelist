@@ -1,6 +1,7 @@
 """Contains data types used throughout program"""
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import discord
@@ -9,6 +10,14 @@ import discord
 GameId = str
 UserId = int
 MessageId = int
+
+
+class GameResult(Enum):
+    """Enum for game results (win, tie, loss)"""
+
+    WON = 0
+    TIED = 1
+    LOST = 2
 
 
 @dataclass
