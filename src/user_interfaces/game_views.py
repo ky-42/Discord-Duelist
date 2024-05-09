@@ -19,14 +19,17 @@ Typical usage example:
 
 import asyncio
 import traceback
-from typing import Awaitable, Callable, Dict
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict
 
 import discord
 from discord import ui
 
 from data_types import DiscordMessage, GameId, UserId
-from data_wrappers.game_status import GameStatus
 from user_interfaces.utils import defer, game_description_string
+
+# Stops circular import
+if TYPE_CHECKING:
+    from data_wrappers.game_status import GameStatus
 
 
 class GetUsers(ui.View):
