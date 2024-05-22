@@ -22,7 +22,7 @@ def gen_game_id():
 
 
 @pytest.fixture
-def user_id():
+def user_ids():
     """Generates a random user id"""
 
     return random.randint(1, 100000)

@@ -6,7 +6,7 @@ import redis
 
 from data_types import UserId
 from data_wrappers import UserStatus
-from tests.testing_data.data_generation import user_id
+from tests.testing_data.data_generation import user_ids
 
 db_number = UserStatus._UserStatus__db_number  # type: ignore
 
@@ -26,57 +26,57 @@ def clear_db():
     conn.flushdb()
 
 
-async def test_join_game(user_id):
+async def test_join_game(user_ids):
     test_user = UserStatus.User.generate_fake(max_active - 1, 0)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
     add_id = "test"
     add_id_two = "test2"
 
-    assert await UserStatus.join_game(user_id, add_id)
-    assert await UserStatus.join_game(user_id, add_id_two)
+    assert await UserStatus.join_game(user_ids, add_id)
+    assert await UserStatus.join_game(user_ids, add_id_two)
 
-    result = UserStatus.User(**conn.json().get(user_id))
+    result = UserStatus.User(**conn.json().get(user_ids))
 
     assert result.queued_games == test_user.queued_games + [add_id_two]
     assert result.active_games == test_user.active_games + [add_id]
 
 
-async def test_join_game_nonexistent_user(user_id):
+async def test_join_game_nonexistent_user(user_ids):
     game_id = "test"
 
-    assert await UserStatus.join_game(user_id, game_id)
+    assert await UserStatus.join_game(user_ids, game_id)
 
     expected_user_state = UserStatus.User(
         active_games=[game_id], queued_games=[], notifications=[]
     )
 
-    assert conn.json().get(user_id) == asdict(expected_user_state)
+    assert conn.json().get(user_ids) == asdict(expected_user_state)
 
 
-async def test_join_game_full(user_id):
+async def test_join_game_full(user_ids):
     test_user = UserStatus.User.generate_fake(max_active, max_queued)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    assert not await UserStatus.join_game(user_id, "test")
+    assert not await UserStatus.join_game(user_ids, "test")
 
 
-async def test_get_status_existing_user(user_id):
+async def test_get_status_existing_user(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    assert await UserStatus.get(user_id) == test_user
-
-
-async def test_get_status_nonexistent_user(user_id):
-    assert await UserStatus.get(user_id) is None
+    assert await UserStatus.get(user_ids) == test_user
 
 
-async def test_check_users_are_ready_all_ready(user_id):
-    users = {user_id + i: UserStatus.User.generate_fake(1, 0) for i in range(3)}
+async def test_get_status_nonexistent_user(user_ids):
+    assert await UserStatus.get(user_ids) is None
+
+
+async def test_check_users_are_ready_all_ready(user_ids):
+    users = {user_ids + i: UserStatus.User.generate_fake(1, 0) for i in range(3)}
 
     for current_user_id, user_obj in users.items():
         conn.json().set(current_user_id, ".", asdict(user_obj))
@@ -84,9 +84,9 @@ async def test_check_users_are_ready_all_ready(user_id):
     assert await UserStatus.check_users_are_ready(list(users.keys()), "0")
 
 
-async def test_users_not_ready(user_id):
-    users = {user_id + i: UserStatus.User.generate_fake(1, 0) for i in range(2)}
-    users[user_id + 2] = UserStatus.User.generate_fake(
+async def test_users_not_ready(user_ids):
+    users = {user_ids + i: UserStatus.User.generate_fake(1, 0) for i in range(2)}
+    users[user_ids + 2] = UserStatus.User.generate_fake(
         max_active, 1, starting_game_id=1
     )
 
@@ -96,64 +96,64 @@ async def test_users_not_ready(user_id):
     assert not await UserStatus.check_users_are_ready(list(users.keys()), "5")
 
 
-async def test_add_notification(user_id):
+async def test_add_notification(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    await UserStatus.add_notification(user_id, "test")
+    await UserStatus.add_notification(user_ids, "test")
 
-    assert "test" in UserStatus.User(**conn.json().get(user_id)).notifications
+    assert "test" in UserStatus.User(**conn.json().get(user_ids)).notifications
 
 
-async def test_add_existing_notification(user_id):
+async def test_add_existing_notification(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0, 1)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    await UserStatus.add_notification(user_id, "0")
+    await UserStatus.add_notification(user_ids, "0")
 
-    assert len(UserStatus.User(**conn.json().get(user_id)).notifications) == 1
+    assert len(UserStatus.User(**conn.json().get(user_ids)).notifications) == 1
 
 
-async def test_remove_notification(user_id):
+async def test_remove_notification(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0, 1)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    assert await UserStatus.remove_notification(user_id, "0")
+    assert await UserStatus.remove_notification(user_ids, "0")
 
-    assert len(UserStatus.User(**conn.json().get(user_id)).notifications) == 0
+    assert len(UserStatus.User(**conn.json().get(user_ids)).notifications) == 0
 
 
-async def test_nonexistent_notification(user_id):
+async def test_nonexistent_notification(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0, 1)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    assert not await UserStatus.remove_notification(user_id, "test")
+    assert not await UserStatus.remove_notification(user_ids, "test")
 
 
-async def test_set_notification_id(user_id):
+async def test_set_notification_id(user_ids):
     test_user = UserStatus.User.generate_fake(1, 0, 1)
 
-    conn.json().set(user_id, ".", asdict(test_user))
+    conn.json().set(user_ids, ".", asdict(test_user))
 
-    await UserStatus.set_notification_id(user_id, 1)
+    await UserStatus.set_notification_id(user_ids, 1)
 
-    assert UserStatus.User(**conn.json().get(user_id)).notification_id == 1
+    assert UserStatus.User(**conn.json().get(user_ids)).notification_id == 1
 
 
-async def test_clear_game(user_id):
+async def test_clear_game(user_ids):
     user_count = 3
 
     users = {
-        user_id
+        user_ids
         + i: UserStatus.User.generate_fake(1, 0, starting_game_id=max_active - 1)
         for i in range(user_count - 1)
     }
-    users[user_id + user_count - 1] = UserStatus.User.generate_fake(max_active, 1)
-    users[user_id + user_count - 1].notifications = [f"{max_active-1}"]
+    users[user_ids + user_count - 1] = UserStatus.User.generate_fake(max_active, 1)
+    users[user_ids + user_count - 1].notifications = [f"{max_active-1}"]
 
     for current_user_id, user_obj in users.items():
         conn.json().set(current_user_id, ".", asdict(user_obj))
@@ -163,12 +163,12 @@ async def test_clear_game(user_id):
     )
 
     assert moved_up_games == set(f"{max_active}")
-    assert removed_notifications == [user_id + user_count - 1]
+    assert removed_notifications == [user_ids + user_count - 1]
 
     for i in range(user_count - 1):
         assert conn.json().get(i) is None
 
-    result = UserStatus.User(**conn.json().get(user_id + user_count - 1))
+    result = UserStatus.User(**conn.json().get(user_ids + user_count - 1))
 
     assert str(max_active) in result.active_games
     assert len(result.queued_games) == 0
