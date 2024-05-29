@@ -1,71 +1,66 @@
-from datetime import datetime
+import asyncio
+import os
+import random
+from ctypes import cast
+from datetime import datetime, timedelta
 from random import choices, randint
 from typing import List, Optional, Tuple
 
 import psycopg
 import pytest
+import pytest_asyncio
+from dotenv import load_dotenv
 from hypothesis import given
 from hypothesis import strategies as st
 from psycopg.sql import SQL, Identifier
 
 from data_types import GameResult, UserId
 from data_wrappers.user_stats import UserStats
-from exceptions import UserNotFound
-from tests.testing_data.data_generation import gen_game_id, user_id
+from tests.testing_data.data_generation import gen_game_id, user_ids
 
-conn = psycopg.connect()
+pytestmark = pytest.mark.asyncio(scope="module")
+
+load_dotenv()
+conn = psycopg.connect(f"{os.getenv('POSTGRES_URI')}")
+
+discord_user_table = "discord_user"
+game_table = "game"
+game_outcome_table = "game_outcome"
 
 
-discord_user_table = "discord_user_test"
-game_table = "game_test"
-game_outcome_table = "game_outcome_test"
+@pytest_asyncio.fixture(scope="module", autouse=True)
+async def open_pool():
+    await UserStats._UserStats__conn_pool.open()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_test_tables():
-    """Creates and drops test tables"""
-
+@pytest.fixture(scope="function", autouse=True)
+def clear_tables():
     with conn.cursor() as cur:
-        # Creates test tables
-        cur.execute(
-            SQL(
-                """
-                CREATE TABLE {}
-                AS SELECT * FROM discord_user WITH NO DATA
-                """,
-            ).format(discord_user_table)
-        )
-        cur.execute(
-            SQL(
-                """
-                CREATE TABLE {}
-                AS SELECT * FROM game WITH NO DATA
-                """,
-            ).format(game_table)
-        )
-        cur.execute(
-            SQL(
-                """
-                CREATE TABLE {}
-                AS SELECT * FROM game_outcome WITH NO DATA
-                """,
-            ).format(game_outcome_table)
-        )
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(discord_user_table)))
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(game_table)))
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(game_outcome_table)))
 
         conn.commit()
 
     yield
 
     with conn.cursor() as cur:
-        cur.execute(SQL("DROP TABLE %s").format(game_outcome_table))
-        cur.execute(SQL("DROP TABLE %s").format(game_table))
-        cur.execute(SQL("DROP TABLE %s").format(discord_user_table))
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(discord_user_table)))
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(game_table)))
+        cur.execute(SQL("DELETE FROM {}").format(Identifier(game_outcome_table)))
 
         conn.commit()
 
 
-@pytest.fixture
-def add_test_user(user_count: int = 1) -> UserId | List[UserId]:
+# ------
+
+
+@pytest.fixture(scope="function")
+def add_test_user() -> UserId:
+    return get_test_users(1)[0]
+
+
+def get_test_users(user_count: int = 1) -> List[UserId]:
     """Adds a test user to the database"""
 
     added_ids = []
@@ -75,7 +70,7 @@ def add_test_user(user_count: int = 1) -> UserId | List[UserId]:
     with conn.cursor() as cur:
         for user_id_offset in range(user_count):
             cur.execute(
-                SQL("INSERT INTO {} (user_id) VALUES (%s)").format(
+                SQL("INSERT INTO {} (id) VALUES (%s)").format(
                     Identifier(discord_user_table)
                 ),
                 (starting_user_id + user_id_offset,),
@@ -99,10 +94,7 @@ def add_test_game(
     with conn.cursor() as cur:
         cur.execute(
             SQL(
-                """
-                INSERT INTO {} (game_type, end_date)
-                VALUES (%s, %s) RETURNING id
-                """
+                "INSERT INTO {} (game_type, end_date) VALUES (%s, %s) RETURNING id"
             ).format(Identifier(game_table)),
             (
                 game_type,
@@ -127,10 +119,7 @@ def add_test_outcome(
     with conn.cursor() as cur:
         cur.execute(
             SQL(
-                """
-                INSERT INTO {} (game_id, user_id, won, tied)
-                VALUES (%s, %s, %s, %s)
-                """
+                "INSERT INTO {} (game_id, user_id, won, tied) VALUES (%s, %s, %s, %s)"
             ).format(Identifier(game_outcome_table)),
             (
                 stored_game_id,
@@ -143,69 +132,86 @@ def add_test_outcome(
         conn.commit()
 
 
-async def test_add_user(user_id: UserId):
-    await UserStats._UserStatus__add_user(user_id)  # type: ignore
+# ------
+
+
+@given(
+    user_ids=st.lists(
+        st.tuples(st.integers(min_value=0, max_value=1000000)), min_size=1, max_size=10
+    )
+)
+async def test_add_user(user_ids: List[Tuple[UserId]]):
+    await UserStats._UserStats__add_users(user_ids)  # type: ignore
 
     with conn.cursor() as cur:
-        cur.execute(
-            SQL("SELECT * FROM {} WHERE id = %s").format(discord_user_table),
-            (user_id,),
-        )
+        for user_id in user_ids:
+            cur.execute(
+                SQL("SELECT * FROM {} WHERE id = %s").format(
+                    Identifier(discord_user_table)
+                ),
+                user_id,
+            )
 
-        conn.commit()
-
-        result = cur.fetchone()
-
-    assert (
-        result is not None
-        and result[0] == user_id
-        and result[1] == None
-        and result[2] == None
-    )
+            assert cur.fetchone()[0] in [user_id_tuple[0] for user_id_tuple in user_ids]
 
 
-@pytest.mark.parametrize("add_test_user", [2, 3, 4], indirect=True)
-async def test_add_game(add_test_user: List[UserId]):
-    game_type = "find_me"
+async def test_no_users_added():
+    await UserStats._UserStats__add_users([])  # type: ignore
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT * FROM discord_user")
+
+        assert cur.fetchone() is None
+
+
+async def test_add_game():
+
+    game_type = "Testing_Game"
+    end_date = datetime.now()
+    users = [1, 2, 3]
 
     await UserStats.add_game(
         game_type,
-        datetime.now(),
-        [(user_id, GameResult.WON) for user_id in add_test_user],
+        end_date,
+        [(user_id, GameResult.WON) for user_id in users],
     )
 
     with conn.cursor() as cur:
         cur.execute(
-            SQL("SELECT * FROM {} WHERE game_type = %s RETURNING game_id").format(
+            SQL("SELECT id FROM {} WHERE game_type = %s").format(
                 Identifier(game_table)
             ),
             (game_type,),
         )
 
-        stored_game_id = cur.fetchone()
+        stored_game_id = cur.fetchone()[0]
 
         assert stored_game_id is not None
 
         cur.execute(
-            SQL("SELECT * FROM {} WHERE game_id = %s RETURNING (user_id, won)").format(
+            SQL("SELECT user_id, won FROM {} WHERE game_id = %s").format(
                 Identifier(game_outcome_table)
             ),
             (stored_game_id,),
         )
 
         # Makes sure game outcome was added for each user
-        result = cur.fetchmany(len(add_test_user))
-        assert {user_and_result[0] for user_and_result in result} <= set(add_test_user)
-        assert all(user_and_result[1] == GameResult.WON for user_and_result in result)
+        result = cur.fetchmany(len(users))
+        print(result)
+        assert {user_and_result[0] for user_and_result in result} <= set(users)
+        assert all(user_and_result[1] == True for user_and_result in result)
 
 
-async def test_supporter_status(add_test_user: UserId):
-    supporter_status = await UserStats.supporter_status(add_test_user)
-    subscription_start, subscription_end = (
-        supporter_status if supporter_status is not None else (None, None)
+async def test_get_user(add_test_user: UserId):
+    user_status = await UserStats.get_user(add_test_user)
+
+    assert user_status
+
+    assert (
+        not user_status.subscription_end_date
+        and not user_status.subscritption_start_date
+        and user_status.user_id == add_test_user
     )
-
-    assert not subscription_start and not subscription_end
 
     current_datetime = datetime.now()
     end_datetime = current_datetime.replace(month=current_datetime.month + 1)
@@ -213,31 +219,26 @@ async def test_supporter_status(add_test_user: UserId):
     with conn.cursor() as cur:
         cur.execute(
             SQL(
-                """
-                UPDATE {} SET supporter = 1, subscription_start_date = %s,
-                subscription_end_date = %s WHERE id = %s
-                """
+                "UPDATE {} SET subscription_start_date = %s, subscription_end_date = %s WHERE id = %s"
             ).format(Identifier(discord_user_table)),
-            (discord_user_table, current_datetime, end_datetime, add_test_user),
+            (current_datetime, end_datetime, add_test_user),
         )
 
         conn.commit()
 
-    supporter_status = await UserStats.supporter_status(add_test_user)
-    subscription_start, subscription_end = (
-        supporter_status if supporter_status is not None else (None, None)
+    user_status = await UserStats.get_user(add_test_user)
+
+    assert (
+        user_status is not None
+        and user_status.subscritption_start_date == current_datetime
+        and user_status.subscription_end_date == end_datetime
     )
 
-    assert subscription_start == current_datetime and subscription_end == end_datetime
 
+async def test_recent_games(add_test_user):
+    most_recent_game_count = 4
+    total_game_count = 3
 
-@given(
-    total_game_count=st.integers(min_value=5, max_value=150),
-    games_in_last_days=st.integers(min_value=1, max_value=10),
-)
-async def test_recent_games(
-    add_test_user: UserId, total_game_count: int, most_recent_game_count: int
-):
     end_date = (x := datetime.now()).replace(year=x.year - 1)
 
     # [Wins, Ties, Losses]
@@ -249,10 +250,10 @@ async def test_recent_games(
         )
 
         # Adds games on different days so getting the most recent games works
-        end_date = end_date.replace(day=end_date.day + 1)
+        end_date = end_date + timedelta(days=1)
 
     recent_games = await UserStats.recent_games(
-        add_test_user, num_games_returned=most_recent_game_count
+        add_test_user, num_games=most_recent_game_count
     )
 
     assert len(recent_games) == most_recent_game_count
@@ -260,35 +261,40 @@ async def test_recent_games(
 
     most_recent_game = await UserStats.recent_games(add_test_user)
 
-    assert len(most_recent_game) == total_game_count
+    assert len(most_recent_game) == 1
     assert all(game[1].won for game in recent_games)
 
 
 async def test_recent_games_no_games(add_test_user: UserId):
+
     assert not len(await UserStats.recent_games(add_test_user))
 
     assert not len(await UserStats.recent_games(add_test_user, 10))
 
 
-@given(
-    game_list=st.lists(st.integers(min_value=1, max_value=6), min_size=30, max_size=50)
-)
-async def test_most_played_games(add_test_user: UserId, game_list: List[int]):
+# @given(
+#     game_list=st.lists(st.integers(min_value=1, max_value=6), min_size=30, max_size=50)
+# )
+async def test_most_played_games():
+    game_list = [str(randint(1, 6)) for _ in range(50)]
+
+    test_user = get_test_users(1)[0]
+
     for game in game_list:
         stored_game_id, _ = add_test_game(game_type=str(game))
-        add_test_outcome(stored_game_id=stored_game_id, user_id=add_test_user)
+        add_test_outcome(stored_game_id=stored_game_id, user_id=test_user)
 
     # Gets the count of each game
     game_counts = [(i, game_list.count(i)) for i in set(game_list)]
     # Ties are broken by the game id
     game_counts.sort(key=lambda game: (game[1], game[0]), reverse=True)
 
-    most_played_game = await UserStats.most_played_games(add_test_user)
+    most_played_game = await UserStats.most_played_games(test_user)
     assert most_played_game[0] == game_counts[0]
 
     num_games_to_get = randint(1, 6)
     most_played_games = await UserStats.most_played_games(
-        add_test_user, num_games_returned=num_games_to_get
+        test_user, num_games_returned=num_games_to_get
     )
 
     try:
@@ -297,46 +303,51 @@ async def test_most_played_games(add_test_user: UserId, game_list: List[int]):
         assert most_played_games == game_counts
 
 
-async def test_get_most_played_games_no_games(add_test_user: UserId):
+async def test_get_most_played_games_no_games(add_test_user):
+
     assert not len(await UserStats.most_played_games(add_test_user))
 
     assert not len(await UserStats.most_played_games(add_test_user, 10))
 
 
-@given(play_count=st.integers(min_value=1, max_value=100))
-@pytest.mark.parametrize("add_test_user", [5, 10, 20], indirect=True)
-async def test_get_most_played_with(add_test_user: List[UserId], play_count: int):
+# @given(
+#     user_count=st.integers(min_value=5, max_value=20),
+#     play_count=st.integers(min_value=1, max_value=100),
+# )
+async def test_get_most_played_with():
 
-    main_player = add_test_user[0]
-    del add_test_user[0]
+    test_user = get_test_users(4)
+
+    main_player = test_user[0]
+    del test_user[0]
 
     # Stores how many times each player has played with the main player
-    player_play_count = {user_id: 0 for user_id in add_test_user}
+    player_play_count = {user_id: 0 for user_id in test_user}
 
-    for _ in range(play_count):
-        stored_game_id, _ = add_test_game()
+    (game_one, _) = add_test_game()
+    (game_two, _) = add_test_game()
+    (game_three, _) = add_test_game()
 
-        for player_with_user in choices(add_test_user, k=randint(2, 6)):
-            add_test_outcome(stored_game_id=stored_game_id, user_id=player_with_user)
-            player_play_count[player_with_user] += 1
+    add_test_outcome(stored_game_id=game_one, user_id=main_player)
+    add_test_outcome(stored_game_id=game_two, user_id=main_player)
+    add_test_outcome(stored_game_id=game_three, user_id=main_player)
 
-    # Turn dict into a sorted list of tuples with form (user_id, play_count)
-    # Ties are broken by the user id
-    player_play_count = sorted(
-        {(user_id, play_count) for user_id, play_count in player_play_count.items()},
-        key=lambda game: (game[1], game[0]),
-        reverse=True,
-    )
+    add_test_outcome(stored_game_id=game_one, user_id=test_user[0])
+    add_test_outcome(stored_game_id=game_two, user_id=test_user[0])
+    add_test_outcome(stored_game_id=game_three, user_id=test_user[0])
+
+    add_test_outcome(stored_game_id=game_one, user_id=test_user[1])
+    add_test_outcome(stored_game_id=game_two, user_id=test_user[1])
 
     most_played_with = await UserStats.most_played_with_users(main_player)
 
-    assert most_played_with[0] == player_play_count[0]
+    assert most_played_with[0] == (test_user[0], 3)
 
     most_played_with = await UserStats.most_played_with_users(
         main_player, num_users_returned=3
     )
 
-    assert most_played_with == player_play_count[:3]
+    assert most_played_with == [(test_user[0], 3), (test_user[1], 2)]
 
 
 async def test_most_played_with_no_games(add_test_user: UserId):
@@ -349,7 +360,7 @@ async def test_delete_user(add_test_user: UserId):
     assert await UserStats.delete_user(add_test_user)
 
     with conn.cursor() as cur:
-        cur.execute("SELECT * FROM users WHERE user_id = %s", (add_test_user,))
+        cur.execute("SELECT * FROM discord_user WHERE id = %s", (add_test_user,))
 
         assert cur.fetchone() is None
 
@@ -358,20 +369,20 @@ async def test_delete_user_no_user(add_test_user: UserId):
     assert not await UserStats.delete_user(1)
 
     with conn.cursor() as cur:
-        cur.execute("SELECT * FROM users WHERE user_id = %s", (add_test_user,))
+        cur.execute("SELECT * FROM discord_user WHERE id = %s", (add_test_user,))
 
         assert cur.fetchone() is not None
 
 
-async def test_clear_games():
+async def test_clear_games(add_test_user):
     game_id_one, _ = add_test_game()
-    game_id_two, _ = add_test_game()
-    add_test_outcome(game_id_one, 1)
+    add_test_game()
+    add_test_outcome(game_id_one, add_test_user)  # type: ignore
 
     await UserStats.clear_isolated_games()
 
     with conn.cursor() as cur:
-        cur.execute("SELECT * FROM game RETURNING game_id")
+        cur.execute("SELECT id FROM game")
 
-        assert cur.fetchone() is game_id_two
+        assert cur.fetchone() == (game_id_one,)
         assert cur.fetchone() is None

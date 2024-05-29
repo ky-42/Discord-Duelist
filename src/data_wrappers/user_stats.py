@@ -147,6 +147,8 @@ class UserStats:
 
                     # Will raise if users not in db so add them and try again
                     except IntegrityError:
+                        await conn.rollback()
+
                         if reran:
                             raise
 
@@ -177,7 +179,7 @@ class UserStats:
                     """
                     SELECT id, subscription_start_date, subscription_end_date, date_added
                     FROM discord_user
-                    WHERE user_id = %s
+                    WHERE id = %s
                     """,
                     (user_id,),
                 )
@@ -243,7 +245,8 @@ class UserStats:
 
         Returns:
             List[(str, int)]: List of tuples of game type and number of times
-                played in order of most to least played.
+                played in order of most to least played. tie is broken by game
+                type in descending order.
         """
 
         async with UserStats.__conn_pool.connection() as conn:
@@ -255,7 +258,8 @@ class UserStats:
                     JOIN game ON game.id = game_outcome.game_id
                     WHERE game_outcome.user_id = %s
                     GROUP BY game.game_type
-                    ORDER BY COUNT(game.game_type) DESC
+                    ORDER BY COUNT(game.game_type) DESC,
+                    game.game_type DESC
                     """,
                     (user_id,),
                 )
@@ -275,7 +279,8 @@ class UserStats:
 
         Returns:
             List[UserId]: List of user ids of the most played with users in order
-                of most to least played with.
+                of most to least played with. Tie is broken by user_id in descending
+                order.
         """
 
         async with UserStats.__conn_pool.connection() as conn:
@@ -291,9 +296,10 @@ class UserStats:
                     ) AS user_games ON game_outcome.game_id = user_games.game_id
                     WHERE user_id != %s
                     GROUP BY user_id
-                    ORDER BY COUNT(user_id) DESC
+                    ORDER BY COUNT(user_id) DESC,
+                    user_id DESC
                     """,
-                    (user_id,),
+                    (user_id, user_id),
                 )
 
                 return [
@@ -315,7 +321,7 @@ class UserStats:
         async with UserStats.__conn_pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "DELETE FROM discord_user WHERE user_id = %s RETURNING id",
+                    "DELETE FROM discord_user WHERE id = %s RETURNING id",
                     (user_id,),
                 )
 
@@ -332,9 +338,10 @@ class UserStats:
                 await cur.execute(
                     """
                     DELETE FROM game
-                    LEFT JOIN game_outcome ON game.id = game_outcome.game_id
-                    WHERE game_outcome.game_id IS NULL
+                    WHERE id NOT IN (
+                        SELECT DISTINCT game_id
+                        FROM game_outcome
+                    )
                     """
                 )
-
                 await conn.commit()
